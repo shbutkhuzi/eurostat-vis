@@ -76,7 +76,7 @@ function initSVGcanvas(immigrData){
 }
 
 function loadData() {
-    d3.csv("../../data/raw/estat_migr_imm8.csv").then(function (data) {
+    d3.csv("data/raw/estat_migr_imm8.csv").then(function (data) {
 
         let immigrData = data.filter((d) => (d.geo === "FI") & (d.age === "TOTAL"));
 
