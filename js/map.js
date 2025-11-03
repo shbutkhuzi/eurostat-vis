@@ -1,8 +1,76 @@
 const mapCtx = {
-    MAP_WIDTH: 1400,
-    MAP_HEIGHT: 750,
+    MAP_WIDTH: 0,
+    MAP_HEIGHT: 0,
     GeoUrl: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson", // "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_20M_2021_4326_LEVL_0.geojson", 
-    europeCenter: [20, 52]
+    europeCenter: [20, 52],
+    NON_SELECTABLE_IMM_COUNTRY_COLOR: "#3e3e3e78",
+    SELECTABLE_IMM_COUNTRY_COLOR: "#575757ff",
+    SELECTED_IMM_COUNTRY_COLOR: "#6f6076ff",
+    BORDER_COLOR: "#DDD",
+    BORDER_COLOR_HIGHLIGHTED: "#ffffffff",
+    SELECTED_CENTROID_COLOR: "#9d28d3ff",
+    NON_SELECTED_CENTROID_COLOR: "#413cd6ff",
+    CENTROID_GLYPH_SIZE: 1,
+    TRANSITION_DEFAULT_DURATION: 750
+};
+
+let currentZoomK = 1;
+let prevCountry = null;
+
+function drawImmFlow(event, D) {
+
+    if (mapCtx.immCountries && !mapCtx.immCountries.has(D.properties.ISO_A2_EH)) {
+        return;
+    }
+
+    // console.log(prevCountry, D.properties.ISO_A2_EH);
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH))
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 0);
+    
+    if (D.properties.ISO_A2_EH != prevCountry) {
+
+        d3.select("#mapG")
+            .selectAll("path.countryPath")
+            .filter(d => d.properties.ISO_A2_EH === D.properties.ISO_A2_EH)
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
+
+        const yearMap = mapCtx.immTransformed.get(D.properties.ISO_A2_EH);
+        let minYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined;
+
+        d3.select("#mapG")
+            .selectAll("path.centroidPath")
+            .filter(d => yearMap.get(minYear).some(item => item.srcCountry === d.properties.ISO_A2_EH && 
+                                                           item.dstCountry !== d.properties.ISO_A2_EH
+            ))
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .attr("fill", mapCtx.NON_SELECTED_CENTROID_COLOR)
+            .attr("opacity", 1);
+
+        d3.select("#mapG")
+            .selectAll("path.centroidPath")
+            .filter(d => yearMap.get(minYear).some(item => item.dstCountry === d.properties.ISO_A2_EH))
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
+            .attr("opacity", 1);
+
+    }
+
+    prevCountry = D.properties.ISO_A2_EH === prevCountry ? null : D.properties.ISO_A2_EH;
 };
 
 function drawImmMap() {
@@ -17,51 +85,71 @@ function drawImmMap() {
                     geometry: f.geometry,
                     properties: {
                         ISO_A2_EH: f.properties.ISO_A2_EH,
-                        NAME: f.properties.NAME
+                        NAME: f.properties.NAME,
+                        LABEL_X: f.properties.LABEL_X,
+                        LABEL_Y: f.properties.LABEL_Y
                     }
                 }))
         };
     }).then(function(geoData) {
 
-        console.log(geoData);
+        // console.log(geoData);
 
         let projection = d3.geoMercator().fitSize([mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT], geoData);
         
         let geoPathGen = d3.geoPath().projection(projection);
-        
-        let paths = d3.select("#mapG")
-            .selectAll("path")
-            .data(geoData.features)
-            .enter()
-            .append("path")
-            .attr("d", geoPathGen)
-            .attr("id", (d) => d.properties.ISO_A2_EH)
-            .attr("countryName", (d) => d.properties.NAME)
-            .attr("stroke", "#DDD")
-            .attr("fill", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
-                                    ? "#575757ff"
-                                    : "#3e3e3e78")
-            .attr("stroke-width", 0.5)
-            .style("cursor", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
-                                    ? "pointer"
-                                    : "default"
-            );
 
-        let currentZoomK = 1;
+        mapCtx.geoData = geoData;
+        mapCtx.geoPathGen = geoPathGen;
+        
+        let featureG = d3.select("#mapG")
+                            .selectAll("g.feature")
+                            .data(geoData.features)
+                            .enter()
+                            .append("g")
+                            .attr("class", "feature")
+                            .attr("id", (d) => d.properties.ISO_A2_EH)
+                            .attr("countryName", (d) => d.properties.NAME);
+
+        let paths = featureG.append("path")
+                    .attr("class", "countryPath")
+                    .attr("d", geoPathGen)
+                    .attr("fill", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
+                                ? mapCtx.SELECTABLE_IMM_COUNTRY_COLOR
+                                : mapCtx.NON_SELECTABLE_IMM_COUNTRY_COLOR)
+                    .attr("stroke", mapCtx.BORDER_COLOR)
+                    .attr("stroke-width", 0.5)
+                    .style("cursor", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
+                                ? "pointer"
+                                : "default"
+                    );
+
+        featureG.append("path")
+                    .attr("class", "centroidPath")
+                    .attr("d", d3.symbol().type(d3.symbolCircle).size(mapCtx.CENTROID_GLYPH_SIZE))
+                    .attr("transform", function(d){
+                        let [x,y] = projection([d.properties.LABEL_X, d.properties.LABEL_Y])
+                        return `translate(${x},${y})`;
+                    })
+                    .attr("opacity", 0);
 
         paths
             .on("mouseenter", function (event, d) {
                 if (mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)) {
                     d3.select(this)
-                        .raise()
+                        .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
                         .attr("stroke-width", 1.5 / currentZoomK);
                 }
             })
             .on("mouseleave", function (event, d) {
                 if (mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)) {
                     d3.select(this)
+                        .attr("stroke", mapCtx.BORDER_COLOR)
                         .attr("stroke-width", 0.5 / currentZoomK);
                 }
+            })
+            .on("click", function (event, d) {
+                drawImmFlow(event, d);
             });
 
         const b = d3.select("#mapG").node().getBBox();
@@ -83,11 +171,12 @@ function drawImmMap() {
             })
             .on("end", function() {
                 d3.select("svg").style("cursor", "grab");
-                d3.select("g#mapG").selectAll("path")
-                .style("cursor", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
-                                        ? "pointer"
-                                        : "default"
-                );
+                d3.select("g#mapG")
+                    .selectAll("path")
+                    .style("cursor", (d) => mapCtx.immCountries && mapCtx.immCountries.has(d.properties.ISO_A2_EH)
+                                            ? "pointer"
+                                            : "default"
+                     );
             });
 
         let initialTransform = d3.zoomIdentity
@@ -103,13 +192,13 @@ function drawImmMap() {
         d3.select("svg").on("dblclick.zoom", function() {
             d3.select("svg")
               .transition()
-              .duration(750)
+              .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
               .call(zoom.transform, initialTransform);
         });
 
     });
 
-}
+};
 
 function loadCountries() {
 
@@ -139,8 +228,12 @@ function loadCountries() {
             (d) => d.dstCountry
         );
 
-        console.log(mapCtx.immData);
-        console.log(mapCtx.immCountries);
+        mapCtx.immTransformed = d3.group(data, d => d.dstCountry, d => d.year)
+
+        // console.log(mapCtx.immTransformed)
+
+        // console.log(mapCtx.immData);
+        // console.log(mapCtx.immCountries);
         console.log(`Total immigration countries: ${mapCtx.immCountries.size}`);
 
         drawImmMap();
