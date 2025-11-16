@@ -142,7 +142,7 @@ function drawImmMap() {
         };
     }).then(function(geoData) {
 
-        console.log(geoData);
+        // console.log(geoData);
 
         let projection = d3.geoMercator().fitSize([mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT], geoData);
         mapCtx.projection = projection;
@@ -309,4 +309,147 @@ function createMap(){
 
     loadCountries();
 
+
+    // const svg = svgEl;
+
+    // // Create your path with quadratic bezier curve
+    // const path = svg.append("path")
+    //     .attr("d", "M 50,100 Q 150,50 250,100")
+    //     .attr("fill", "none")
+    //     .attr("stroke", "#4CAF50")
+    //     .attr("stroke-width", 2);
+
+    // // Define dash pattern (dash length + gap length)
+    // const dashLength = 5;
+    // const gapLength = 5;
+    // const dashArray = dashLength + gapLength; // Total pattern length = 10
+
+    // path.attr("stroke-dasharray", `${dashLength},${gapLength}`);
+
+    // // Animate stroke-dashoffset continuously
+    // // The key: animate by one full pattern length (dashArray)
+    // // This way, when it resets, it's visually identical
+    // function animatePath() {
+    //     path.attr("stroke-dashoffset", dashArray) // Start at one pattern length
+    //         .transition()
+    //         .duration(500) // Speed of animation
+    //         .ease(d3.easeLinear) // Must be linear for smooth loop
+    //         .attr("stroke-dashoffset", 0) // End at 0
+    //         .on("end", animatePath); // Seamlessly restart
+    // }
+
+    // animatePath();
+
+
+
+
+
+
+
+
+
+
+    const svg = svgEl;
+
+    // Define a linear gradient from source to destination
+    const gradient = svg.append("defs")
+        .append("linearGradient")
+        .attr("id", "path-gradient")
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", 50)   // source x
+        .attr("y1", 100)  // source y
+        .attr("x2", 250)  // destination x
+        .attr("y2", 100); // destination y
+
+    // Add color stops (customize these colors)
+    gradient.append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", "#2196F3");  // blue at start
+
+    gradient.append("stop")
+        .attr("offset", "50%")           // keep blue until here
+        .attr("stop-color", "#2196F3");  // still blue
+
+    gradient.append("stop")
+        .attr("offset", "80%")           // transition happens between 50-70%
+        .attr("stop-color", "#F44336");  // red
+
+    gradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", "#F44336");  // red at end
+
+    // Create your path with the gradient stroke
+    const path = svg.append("path")
+        .attr("d", "M 50,100 Q 150,50 250,100")
+        .attr("fill", "none")
+        .attr("stroke", "url(#path-gradient)")  // reference the gradient
+        .attr("stroke-width", 2);
+
+    // Define dash pattern (dash length + gap length)
+    const dashLength = 5;
+    const gapLength = 5;
+    const dashArray = dashLength + gapLength;
+
+    path.attr("stroke-dasharray", `${dashLength},${gapLength}`);
+
+    // Animate stroke-dashoffset continuously
+    function animatePath() {
+        path.attr("stroke-dashoffset", dashArray)
+            .transition()
+            .duration(500)
+            .ease(d3.easeLinear)
+            .attr("stroke-dashoffset", 0)
+            .on("end", animatePath);
+    }
+
+    animatePath();
+
+
+
+
+
+
+
+
+
+    // // Simple and fancy striped stroke examples using D3
+
+    // const svg = svgEl;
+    // const pathData = "M 50,100 Q 150,50 250,100";
+
+    // // background (gap) stroke - full continuous stroke showing through gaps
+    // svg.append("path")
+    // .attr("d", pathData)
+    // .attr("fill", "none")
+    // .attr("stroke", "#FFC107")     // color for the gaps
+    // .attr("stroke-width", 2)
+    // .attr("stroke-linecap", "butt");
+
+    // // top dashed stroke - dashes in front color
+    // const dashLength = 16;
+    // const gapLength = 8;
+    // const dashCycle = dashLength + gapLength;
+
+    // const top = svg.append("path")
+    // .attr("d", pathData)
+    // .attr("fill", "none")
+    // .attr("stroke", "#4CAF50")     // color of dashes
+    // .attr("stroke-width", 2)
+    // .attr("stroke-linecap", "butt")
+    // .attr("stroke-dasharray", `${dashLength},${gapLength}`);
+
+    // // animate top dashed stroke continuously without visible jump
+    // function animateTop() {
+    // top.attr("stroke-dashoffset", dashCycle)
+    //     .transition()
+    //     .duration(800)                 // control speed here
+    //     .ease(d3.easeLinear)
+    //     .attr("stroke-dashoffset", 0)
+    //     .on("end", animateTop);
+    // }
+    // animateTop();
+
+
 };
+
+
