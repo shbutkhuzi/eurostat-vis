@@ -84,6 +84,11 @@ function drawImmFlow(event, D) {
     }
 
     prevCountry = D.properties.ISO_A2_EH === prevCountry ? null : D.properties.ISO_A2_EH;
+    
+    
+    if (typeof updateOverlayVisibility === 'function') {
+        updateOverlayVisibility(prevCountry !== null);
+    }
 };
 
 function focusViewOnCountries(focusCountryIDs){
