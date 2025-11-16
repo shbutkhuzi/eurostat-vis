@@ -37,6 +37,11 @@ function drawImmFlow(event, D) {
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
+
+    d3.select("svg")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .call(mapCtx.zoom.transform, mapCtx.initialTransform);
     
     if (D.properties.ISO_A2_EH != prevCountry) {
 
@@ -49,10 +54,13 @@ function drawImmFlow(event, D) {
 
         const yearMap = mapCtx.immTransformed.get(D.properties.ISO_A2_EH);
         let minYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined;
+        let selectedYear = minYear;
+
+        // console.log(yearMap);
 
         d3.select("#mapG")
             .selectAll("path.centroidPath")
-            .filter(d => yearMap.get(minYear).some(item => item.srcCountry === d.properties.ISO_A2_EH && 
+            .filter(d => yearMap.get(selectedYear).some(item => item.srcCountry === d.properties.ISO_A2_EH && 
                                                            item.dstCountry !== d.properties.ISO_A2_EH
             ))
             .transition()
@@ -62,15 +70,56 @@ function drawImmFlow(event, D) {
 
         d3.select("#mapG")
             .selectAll("path.centroidPath")
-            .filter(d => yearMap.get(minYear).some(item => item.dstCountry === d.properties.ISO_A2_EH))
+            .filter(d => yearMap.get(selectedYear).some(item => item.dstCountry === d.properties.ISO_A2_EH))
             .transition()
             .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
             .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
             .attr("opacity", 1);
 
+        let focusCountryIDs = [...new Set(
+            yearMap.get(selectedYear).flatMap(item => [item.srcCountry, item.dstCountry])
+        )];
+
+        focusViewOnCountries(focusCountryIDs);
     }
 
     prevCountry = D.properties.ISO_A2_EH === prevCountry ? null : D.properties.ISO_A2_EH;
+};
+
+function focusViewOnCountries(focusCountryIDs){
+
+    let focusCountryCoords = mapCtx.geoData.features
+        .filter(f => focusCountryIDs.includes(f.properties.ISO_A2_EH))
+        .map(f => mapCtx.projection([f.properties.LABEL_X, f.properties.LABEL_Y]));
+
+    let xs = focusCountryCoords.map(p => p[0]);
+    let ys = focusCountryCoords.map(p => p[1]);
+    let minX = d3.min(xs), maxX = d3.max(xs);
+    let minY = d3.min(ys), maxY = d3.max(ys);
+
+    let bboxW = Math.max(1, maxX - minX);
+    let bboxH = Math.max(1, maxY - minY);
+
+    let padding = Math.max(15, Math.min(mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT) * 0.01);
+    // console.log(padding);
+
+    let scale = Math.min(
+            mapCtx.MAP_WIDTH / (bboxW + padding),
+            mapCtx.MAP_HEIGHT / (bboxH + padding)
+        );
+
+    let centerX = (minX + maxX) / 2;
+    let centerY = (minY + maxY) / 2;
+
+    let focusTransform = d3.zoomIdentity
+        .translate(mapCtx.MAP_WIDTH / 2, mapCtx.MAP_HEIGHT / 2)
+        .scale(scale)
+        .translate(-centerX, -centerY);
+
+    d3.select("svg")
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .call(mapCtx.zoom.transform, focusTransform);
 };
 
 function drawImmMap() {
@@ -93,9 +142,10 @@ function drawImmMap() {
         };
     }).then(function(geoData) {
 
-        // console.log(geoData);
+        console.log(geoData);
 
         let projection = d3.geoMercator().fitSize([mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT], geoData);
+        mapCtx.projection = projection;
         
         let geoPathGen = d3.geoPath().projection(projection);
 
@@ -179,15 +229,17 @@ function drawImmMap() {
                      );
             });
 
+        mapCtx.zoom = zoom;
+
         let initialTransform = d3.zoomIdentity
             .translate(mapCtx.MAP_WIDTH / 2, mapCtx.MAP_HEIGHT / 2)
             .scale(6)
             .translate(-projection(mapCtx.europeCenter)[0], -projection(mapCtx.europeCenter)[1]);
+        mapCtx.initialTransform = initialTransform;
 
         d3.select("svg")
             .call(zoom)
-            .call(zoom.transform, initialTransform)
-            .style("cursor", "grab");
+            .call(zoom.transform, initialTransform);
 
         d3.select("svg").on("dblclick.zoom", function() {
             d3.select("svg")
@@ -230,7 +282,7 @@ function loadCountries() {
 
         mapCtx.immTransformed = d3.group(data, d => d.dstCountry, d => d.year)
 
-        // console.log(mapCtx.immTransformed)
+        // console.log(mapCtx.immTransformed);
 
         // console.log(mapCtx.immData);
         // console.log(mapCtx.immCountries);
