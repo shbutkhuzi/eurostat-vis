@@ -6,6 +6,8 @@
         <!-- https://d3js.org/ -->
         <script type="text/javascript" src="js/d3.v7.min.js"></script>
         <script type="text/javascript" src="js/map.js"></script>
+        <script type="text/javascript" src="js/overlay.js"></script>
+        <link rel="stylesheet" href="css/overlay.css">
         <style>
 
             html, body {
@@ -29,8 +31,19 @@
 
     </head>
 
-    <body onload="createMap();">
+    <body onload="createMap(); initOverlay();">
         <div id="main"></div>
+        <div id="overlay-container">
+            <button id="details-button">
+                <svg id="button-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="9" stroke="white" stroke-width="2" fill="none"/>
+                    <text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold">i</text>
+                </svg>
+            </button>
+            <div id="popup-window">
+                <div id="popup-content"></div>
+            </div>
+        </div>
     </body>
 
 </html>
