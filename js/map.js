@@ -20,10 +20,9 @@ let currentZoomK = 1;
 let prevCountry = null;
 
 
-function drawFlowNetwork(selectedCountry, selectedYearData){
+function drawFlowNetwork(selectedCountry){
 
-    // console.log(selectedCountry);
-    // console.log(selectedYearData);
+    const selectedCountryData = mapCtx.immDataGrouped.get(selectedCountry);
 
     const flowG = d3.select("g#immFlowG").empty()
                         ? d3.select("#mapG").append("g").attr("id", "immFlowG")
@@ -33,120 +32,129 @@ function drawFlowNetwork(selectedCountry, selectedYearData){
     
     const dstCountryCoords = mapCtx.countryInfo.get(selectedCountry);
 
-    const defs = flowG.select("defs").empty() 
-        ? flowG.append("defs")
-        : flowG.select("defs");
-
-    defs.select("*").remove();
-
     let particleSpeedScale = d3.scaleLog().domain(mapCtx.immValueExt).range([1000, 100]);
 
-    flowG.selectAll("path")
-        .data(selectedYearData)
+    flowG.selectAll("g")
+        .data(selectedCountryData)
         .enter()
-        .append("path")
+        .append("g")
+        .attr("id", (d) => `year-${d[0]}`)
         .each(function(d) {
 
-            // console.log(d);
+            const defs = d3.select(this)
+                            .attr("opacity", 0)
+                            .append("defs");
 
-            const dashLength = 1;
-            const gapLength = 1;
-            const dashArray = dashLength + gapLength;
+            d3.select(this).selectAll("path")
+                .data(d[1])
+                .enter()
+                .append("path")
+                .each(function(p) {
 
-            const srcCountryCoords = mapCtx.countryInfo.get(d[0]);
-            const gradientId = `gradient-${d[0]}-${selectedCountry}`.replace(/\s+/g, '-');
+                    srcCountry = p[0];
+                    srcCountryData = p[1];
 
-            const gradient = defs.append("linearGradient")
-                .attr("id", gradientId)
-                .attr("gradientUnits", "userSpaceOnUse")
-                .attr("x1", srcCountryCoords.px)
-                .attr("y1", srcCountryCoords.py)
-                .attr("x2", dstCountryCoords.px)
-                .attr("y2", dstCountryCoords.py);
+                    const dashLength = 1;
+                    const gapLength = 1;
+                    const dashArray = dashLength + gapLength;
 
-            const gradientMargin = 10;
+                    const srcCountryCoords = mapCtx.countryInfo.get(srcCountry);
+                    const gradientId = `gradient-${srcCountry}-${selectedCountry}-${d[0]}`.replace(/\s+/g, '-');
 
-            if (d[1].length === 3) {
-                maleVal = d[1].find(item => item.sex === "M").value;
-                totalVal = d[1].find(item => item.sex === "T").value;
-                maleRatio = (maleVal/totalVal) * 100;
+                    const gradient = defs.append("linearGradient")
+                        .attr("id", gradientId)
+                        .attr("gradientUnits", "userSpaceOnUse")
+                        .attr("x1", srcCountryCoords.px)
+                        .attr("y1", srcCountryCoords.py)
+                        .attr("x2", dstCountryCoords.px)
+                        .attr("y2", dstCountryCoords.py);
 
-                gradient.append("stop")
-                    .attr("offset", "0%")
-                    .attr("stop-color", "#2196F3");
-                gradient.append("stop")
-                    .attr("offset", `${maleRatio-gradientMargin}%`)
-                    .attr("stop-color", "#2196F3");
-                gradient.append("stop")
-                    .attr("offset", `${maleRatio+gradientMargin}%`)
-                    .attr("stop-color", "#F44336");
-                gradient.append("stop")
-                    .attr("offset", "100%")
-                    .attr("stop-color", "#F44336");
+                    const gradientMargin = 10;
 
-            } else if (d[1].length === 2) {
-                maleVal = d[1].find(item => item.sex === "M")?.value || 0;
-                femaleVal = d[1].find(item => item.sex === "F")?.value || 0;
-                totalVal = d[1].find(item => item.sex === "T").value;
+                    if (srcCountryData.length === 3) {
+                        maleVal = srcCountryData.find(item => item.sex === "M").value;
+                        totalVal = srcCountryData.find(item => item.sex === "T").value;
+                        maleRatio = (maleVal/totalVal) * 100;
 
-                if (femaleVal) {
-                    gradient.append("stop")
-                        .attr("offset", "0%")
-                        .attr("stop-color", "#F44336");
-                    gradient.append("stop")
-                        .attr("offset", "100%")
-                        .attr("stop-color", "#F44336");
-                }else if (maleVal) {
-                    gradient.append("stop")
-                        .attr("offset", "0%")
-                        .attr("stop-color", "#2196F3");
-                    gradient.append("stop")
-                        .attr("offset", "100%")
-                        .attr("stop-color", "#2196F3");
-                }
-            } else if (d[1].length === 1) {
-                totalVal = d[1].find(item => item.sex === "T").value;
-                gradient.append("stop")
-                    .attr("offset", "0%")
-                    .attr("stop-color", "#9e6aaaff");
-                gradient.append("stop")
-                    .attr("offset", "100%")
-                    .attr("stop-color", "#9e6aaaff");
-            }
+                        gradient.append("stop")
+                            .attr("offset", "0%")
+                            .attr("stop-color", "#2196F3");
+                        gradient.append("stop")
+                            .attr("offset", `${maleRatio-gradientMargin}%`)
+                            .attr("stop-color", "#2196F3");
+                        gradient.append("stop")
+                            .attr("offset", `${maleRatio+gradientMargin}%`)
+                            .attr("stop-color", "#F44336");
+                        gradient.append("stop")
+                            .attr("offset", "100%")
+                            .attr("stop-color", "#F44336");
 
-            let path = d3.select(this)
-                .attr("d", () => {
-                    
-                    const x1 = srcCountryCoords.px;
-                    const y1 = srcCountryCoords.py;
-                    const x2 = dstCountryCoords.px;
-                    const y2 = dstCountryCoords.py;
+                    } else if (srcCountryData.length === 2) {
+                        maleVal = srcCountryData.find(item => item.sex === "M")?.value || 0;
+                        femaleVal = srcCountryData.find(item => item.sex === "F")?.value || 0;
+                        totalVal = srcCountryData.find(item => item.sex === "T").value;
 
-                    return quadraticBezierPath(x1, y1, x2, y2);
-                })
-                .style("pointer-events", "none")
-                .attr("fill", "none")
-                .attr("stroke", `url(#${gradientId})`)
-                .attr("stroke-width", 0.6)
-                .attr("stroke-dasharray", `${dashLength},${gapLength}`);
+                        if (femaleVal) {
+                            gradient.append("stop")
+                                .attr("offset", "0%")
+                                .attr("stop-color", "#F44336");
+                            gradient.append("stop")
+                                .attr("offset", "100%")
+                                .attr("stop-color", "#F44336");
+                        }else if (maleVal) {
+                            gradient.append("stop")
+                                .attr("offset", "0%")
+                                .attr("stop-color", "#2196F3");
+                            gradient.append("stop")
+                                .attr("offset", "100%")
+                                .attr("stop-color", "#2196F3");
+                        }
+                    } else if (srcCountryData.length === 1) {
+                        totalVal = srcCountryData.find(item => item.sex === "T").value;
+                        gradient.append("stop")
+                            .attr("offset", "0%")
+                            .attr("stop-color", "#9e6aaaff");
+                        gradient.append("stop")
+                            .attr("offset", "100%")
+                            .attr("stop-color", "#9e6aaaff");
+                    }
 
-            function animatePath() {
-                path.attr("stroke-dashoffset", dashArray)
-                    .transition()
-                    .duration(particleSpeedScale(totalVal))
-                    .ease(d3.easeLinear)
-                    .attr("stroke-dashoffset", 0)
-                    .on("end", animatePath);
-            }
+                    let path = d3.select(this)
+                        .attr("d", () => {
+                            
+                            const x1 = srcCountryCoords.px;
+                            const y1 = srcCountryCoords.py;
+                            const x2 = dstCountryCoords.px;
+                            const y2 = dstCountryCoords.py;
 
-            animatePath();
+                            return quadraticBezierPath(x1, y1, x2, y2);
+                        })
+                        .style("pointer-events", "none")
+                        .attr("fill", "none")
+                        .attr("stroke", `url(#${gradientId})`)
+                        .attr("stroke-width", 0.6)
+                        .attr("stroke-dasharray", `${dashLength},${gapLength}`);
 
+                    function animatePath() {
+                        path.attr("stroke-dashoffset", dashArray)
+                            .transition()
+                            .duration(particleSpeedScale(totalVal))
+                            .ease(d3.easeLinear)
+                            .attr("stroke-dashoffset", 0)
+                            .on("end", animatePath);
+                    }
+
+                    animatePath();
+
+                });
         });
     
-    flowG.transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("opacity", 1);
-    
+    firstYear = selectedCountryData ? d3.min(Array.from(selectedCountryData.keys())) : undefined;
+
+    flowG.select(getImmFlowYearGroupId(selectedYear))
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 1);
 };
 
 
@@ -161,38 +169,40 @@ function quadraticBezierPath(x1, y1, x2, y2){
 };
 
 
-function focusViewOnCountries(selectedCountry, selectedYearData){
+function focusViewOnImmFlow(selectedYear){
 
-    let focusCountryIDs = [selectedCountry, ...Array.from(selectedYearData.keys())];
+    const flowG = d3.select("g#immFlowG")
+                    .select(getImmFlowYearGroupId(selectedYear));
+    
+    if (flowG.empty()) {
+        return;
+    }
 
-    let focusCountryCoords = focusCountryIDs
-        .filter(id => mapCtx.countryInfo.has(id))
-        .map(id => {
-            const info = mapCtx.countryInfo.get(id);
-            return [info.px, info.py];
-        });
+    const bbox = flowG.node().getBBox();
+    
+    if (bbox.width === 0 || bbox.height === 0) {
+        return;
+    }
 
-    let xs = focusCountryCoords.map(p => p[0]);
-    let ys = focusCountryCoords.map(p => p[1]);
-    let minX = d3.min(xs), maxX = d3.max(xs);
-    let minY = d3.min(ys), maxY = d3.max(ys);
+    const sliderContainer = document.getElementById('slider-container');
+    const sliderHeight = sliderContainer ? sliderContainer.offsetHeight : 0;
+    const sliderStyles = sliderContainer ? window.getComputedStyle(sliderContainer) : null;
+    const sliderPaddingBottom = sliderStyles ? parseFloat(sliderStyles.bottom) : 0;
 
-    let bboxW = Math.max(1, maxX - minX);
-    let bboxH = Math.max(1, maxY - minY);
-
-    let padding = Math.max(15, Math.min(mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT) * 0.01);
-    // console.log(padding);
+    const availableHeight = mapCtx.MAP_HEIGHT - sliderHeight - sliderPaddingBottom;
+    
+    let padding = Math.max(10, Math.min(mapCtx.MAP_WIDTH, availableHeight) * 0.01);
 
     let scale = Math.min(
-            mapCtx.MAP_WIDTH / (bboxW + padding),
-            mapCtx.MAP_HEIGHT / (bboxH + padding)
-        );
+        mapCtx.MAP_WIDTH / (bbox.width + padding),
+        availableHeight / (bbox.height + padding)
+    );
 
-    let centerX = (minX + maxX) / 2;
-    let centerY = (minY + maxY) / 2;
+    let centerX = bbox.x + bbox.width / 2;
+    let centerY = bbox.y + bbox.height / 2;
 
     let focusTransform = d3.zoomIdentity
-        .translate(mapCtx.MAP_WIDTH / 2, mapCtx.MAP_HEIGHT / 2)
+        .translate(mapCtx.MAP_WIDTH / 2, availableHeight / 2)
         .scale(scale)
         .translate(-centerX, -centerY);
 
@@ -200,7 +210,7 @@ function focusViewOnCountries(selectedCountry, selectedYearData){
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .call(mapCtx.zoom.transform, focusTransform);
-};
+}
 
 
 function drawImmFlow(selectedCountry) {
@@ -222,13 +232,9 @@ function drawImmFlow(selectedCountry) {
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
 
-    d3.select("svg")
+    d3.select("g#immFlowG").selectAll("g")
         .transition()
-        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .call(mapCtx.zoom.transform, mapCtx.initialTransform);
-
-    d3.select("g#immFlowG")
-        .transition()
+        .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
     
@@ -262,16 +268,22 @@ function drawImmFlow(selectedCountry) {
             .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
             .attr("opacity", 1);
 
-        focusViewOnCountries(selectedCountry, selectedYearData);
-
-        d3.select("g#immFlowG")
+        d3.select("g#immFlowG").selectAll("g")
             .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .ease(d3.easeSinInOut)
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0)
             .end()
             .then(() => {
-                drawFlowNetwork(selectedCountry, selectedYearData);
+                drawFlowNetwork(selectedCountry);
+                focusViewOnImmFlow(selectedYear);
             });
+
+    } else {
+        d3.select("svg")
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .call(mapCtx.zoom.transform, mapCtx.initialTransform);
     }
 
     prevCountry = selectedCountry === prevCountry ? null : selectedCountry;
@@ -297,27 +309,17 @@ function updateImmFlow(selectedCountry, selectedYear){
         .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
 
     d3.select("#mapG")
-        .selectAll("path.centroidPath")
-        .transition()
-        .duration(mapCtx.TRANSITION_SHORT_DURATION)
-        .attr("opacity", 0);
-
-    // d3.select("svg")
-    //     .transition()
-    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
-    //     .call(mapCtx.zoom.transform, mapCtx.initialTransform);
-
-    // d3.select("g#immFlowG")
-    //     .transition()
-    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
-    //     .attr("opacity", 0);
-
-    d3.select("#mapG")
         .selectAll("path.countryPath")
         .filter(d => d.properties.GEOUNIT ===selectedCountry)
         .transition()
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
         .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("opacity", 0);
 
     const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
     let selectedYearData = yearMap.get(selectedYear);
@@ -339,19 +341,26 @@ function updateImmFlow(selectedCountry, selectedYear){
         .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
         .attr("opacity", 1);
 
-    // focusViewOnCountries(selectedCountry, selectedYearData);
+    d3.select("g#immFlowG").selectAll("g")
+        .transition()
+        .ease(d3.easeSinInOut)
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 0);
 
-    drawFlowNetwork(selectedCountry, selectedYearData);
-
-    // d3.select("g#immFlowG")
-    //     .transition()
-    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
-    //     .attr("opacity", 0)
-    //     .end()
-    //     .then(() => {
-    //         drawFlowNetwork(selectedCountry, selectedYearData);
-    //     });
+    d3.select("g#immFlowG")
+        .select(getImmFlowYearGroupId(selectedYear))
+        .transition()
+        .ease(d3.easeSinInOut)
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 1);
+    
+    focusViewOnImmFlow(selectedYear);
 };
+
+
+function getImmFlowYearGroupId(year){
+    return `g#year-${year}`;
+}
 
 
 function drawImmMap(){
@@ -599,13 +608,13 @@ function loadData(){
 
             mapCtx.immDataGrouped = d3.group(immData, d => d.dstCountry, d => d.year, d => d.srcCountry);
 
-            checkImmDataIntegrity();
+            // checkImmDataIntegrity();
 
-            console.log("immDstCountries:", mapCtx.immDstCountries);
-            console.log("immSrcCoutries:", mapCtx.immSrcCoutries);
-            console.log("immDataGrouped:", mapCtx.immDataGrouped);
-            console.log("countryInfo:", mapCtx.countryInfo);
-            console.log("geoJson:", mapCtx.geoJson);
+            // console.log("immDstCountries:", mapCtx.immDstCountries);
+            // console.log("immSrcCoutries:", mapCtx.immSrcCoutries);
+            // console.log("immDataGrouped:", mapCtx.immDataGrouped);
+            // console.log("countryInfo:", mapCtx.countryInfo);
+            // console.log("geoJson:", mapCtx.geoJson);
 
             drawImmMap();
 

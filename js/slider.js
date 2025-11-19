@@ -177,7 +177,7 @@ function getCurrentYear() {
 function onSliderValueChange() {
 
     const currentYear = getCurrentYear();
-    console.log('Slider changed to year:', currentYear, 'for country:', sliderState.currentCountry);
+    // console.log('Slider changed to year:', currentYear, 'for country:', sliderState.currentCountry);
     
     updateImmFlow(sliderState.currentCountry, currentYear);
 }
