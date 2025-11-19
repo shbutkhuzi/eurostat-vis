@@ -12,17 +12,18 @@ const mapCtx = {
     SELECTED_CENTROID_COLOR: "#9d28d3ff",
     NON_SELECTED_CENTROID_COLOR: "#413cd6ff",
     CENTROID_GLYPH_SIZE: 1,
-    TRANSITION_DEFAULT_DURATION: 750
+    TRANSITION_DEFAULT_DURATION: 750,
+    TRANSITION_SHORT_DURATION: 250
 };
 
 let currentZoomK = 1;
 let prevCountry = null;
 
 
-function drawFlowNetwork(selectedCountry, selectedYear){
+function drawFlowNetwork(selectedCountry, selectedYearData){
 
     // console.log(selectedCountry);
-    // console.log(selectedYear);
+    // console.log(selectedYearData);
 
     const flowG = d3.select("g#immFlowG").empty()
                         ? d3.select("#mapG").append("g").attr("id", "immFlowG")
@@ -36,10 +37,12 @@ function drawFlowNetwork(selectedCountry, selectedYear){
         ? flowG.append("defs")
         : flowG.select("defs");
 
-    let particleSpeedScale = d3.scaleLog().base(10).domain(mapCtx.immValueExt).range([2000, 500]);
+    defs.select("*").remove();
+
+    let particleSpeedScale = d3.scaleLog().domain(mapCtx.immValueExt).range([1000, 100]);
 
     flowG.selectAll("path")
-        .data(selectedYear)
+        .data(selectedYearData)
         .enter()
         .append("path")
         .each(function(d) {
@@ -121,6 +124,7 @@ function drawFlowNetwork(selectedCountry, selectedYear){
 
                     return quadraticBezierPath(x1, y1, x2, y2);
                 })
+                .style("pointer-events", "none")
                 .attr("fill", "none")
                 .attr("stroke", `url(#${gradientId})`)
                 .attr("stroke-width", 0.6)
@@ -157,9 +161,9 @@ function quadraticBezierPath(x1, y1, x2, y2){
 };
 
 
-function focusViewOnCountries(selectedCountry, selectedYear){
+function focusViewOnCountries(selectedCountry, selectedYearData){
 
-    let focusCountryIDs = [selectedCountry, ...Array.from(selectedYear.keys())];
+    let focusCountryIDs = [selectedCountry, ...Array.from(selectedYearData.keys())];
 
     let focusCountryCoords = focusCountryIDs
         .filter(id => mapCtx.countryInfo.has(id))
@@ -238,13 +242,13 @@ function drawImmFlow(selectedCountry) {
             .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
 
         const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
-        let minYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined;
-        let selectedYear = yearMap.get(minYear);
+        selectedYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined
+        let selectedYearData = yearMap.get(selectedYear);
 
         d3.select("#mapG")
             .selectAll("path.centroidPath")
             .filter(d => d.properties.GEOUNIT !== selectedCountry && 
-                        selectedYear.has(d.properties.GEOUNIT))
+                        selectedYearData.has(d.properties.GEOUNIT))
             .transition()
             .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
             .attr("fill", mapCtx.NON_SELECTED_CENTROID_COLOR)
@@ -258,7 +262,7 @@ function drawImmFlow(selectedCountry) {
             .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
             .attr("opacity", 1);
 
-        focusViewOnCountries(selectedCountry, selectedYear);
+        focusViewOnCountries(selectedCountry, selectedYearData);
 
         d3.select("g#immFlowG")
             .transition()
@@ -266,7 +270,7 @@ function drawImmFlow(selectedCountry) {
             .attr("opacity", 0)
             .end()
             .then(() => {
-                drawFlowNetwork(selectedCountry, selectedYear);
+                drawFlowNetwork(selectedCountry, selectedYearData);
             });
     }
 
@@ -276,6 +280,77 @@ function drawImmFlow(selectedCountry) {
     if (typeof updateOverlayVisibility === 'function') {
         updateOverlayVisibility(prevCountry !== null);
     }
+    
+    if (typeof updateSliderVisibility === 'function') {
+        updateSliderVisibility(prevCountry !== null, selectedCountry);
+    }
+};
+
+
+function updateImmFlow(selectedCountry, selectedYear){
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => mapCtx.immDstCountries.includes(d.properties.GEOUNIT))
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("opacity", 0);
+
+    // d3.select("svg")
+    //     .transition()
+    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
+    //     .call(mapCtx.zoom.transform, mapCtx.initialTransform);
+
+    // d3.select("g#immFlowG")
+    //     .transition()
+    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
+    //     .attr("opacity", 0);
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => d.properties.GEOUNIT ===selectedCountry)
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
+
+    const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
+    let selectedYearData = yearMap.get(selectedYear);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .filter(d => d.properties.GEOUNIT !== selectedCountry && 
+                    selectedYearData.has(d.properties.GEOUNIT))
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("fill", mapCtx.NON_SELECTED_CENTROID_COLOR)
+        .attr("opacity", 1);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .filter(d => d.properties.GEOUNIT === selectedCountry)
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
+        .attr("opacity", 1);
+
+    // focusViewOnCountries(selectedCountry, selectedYearData);
+
+    drawFlowNetwork(selectedCountry, selectedYearData);
+
+    // d3.select("g#immFlowG")
+    //     .transition()
+    //     .duration(mapCtx.TRANSITION_SHORT_DURATION)
+    //     .attr("opacity", 0)
+    //     .end()
+    //     .then(() => {
+    //         drawFlowNetwork(selectedCountry, selectedYearData);
+    //     });
 };
 
 

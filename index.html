@@ -7,7 +7,9 @@
         <script type="text/javascript" src="js/d3.v7.min.js"></script>
         <script type="text/javascript" src="js/map.js"></script>
         <script type="text/javascript" src="js/overlay.js"></script>
+        <script type="text/javascript" src="js/slider.js"></script>
         <link rel="stylesheet" href="css/overlay.css">
+        <link rel="stylesheet" href="css/slider.css">
         <style>
 
             html, body {
@@ -31,7 +33,7 @@
 
     </head>
 
-    <body onload="createMap(); initOverlay();">
+    <body onload="createMap(); initOverlay(); initSlider();">
         <div id="main"></div>
         <div id="overlay-container">
             <button id="details-button">
@@ -43,6 +45,17 @@
             <div id="popup-window">
                 <div id="popup-content"></div>
             </div>
+        </div>
+        <div id="slider-container">
+            <button id="play-pause-button">
+                <svg id="play-pause-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 5 L8 19 L18 12 Z" fill="white"/>
+                </svg>
+            </button>
+            <div id="slider-wrapper">
+                <input type="range" id="year-slider" min="0" max="0" value="0" step="1">
+            </div>
+            <div id="year-display"></div>
         </div>
     </body>
 
