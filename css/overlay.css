@@ -95,6 +95,11 @@
     height: 100%;
     overflow-y: auto;
     color: #ddd;
+    
+    overflow-y: auto;
+    color: #ddd;
+    font-family: Inter, Arial, sans-serif; /* fuente del popup */
+    font-size: 14px;
 }
 
 /* Custom scrollbar for popup content */

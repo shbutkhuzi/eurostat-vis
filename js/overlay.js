@@ -101,3 +101,132 @@ function updateOverlayVisibility(countrySelected) {
         hideDetailsButton();
     }
 }
+
+function updatePopupContent(html, countryId=null) {
+    //const popup = document.getElementById("popup-window");
+    //popup.innerHTML = html;
+
+    const popupContent = document.getElementById("popup-content");
+    if (!popupContent) return;
+    popupContent.innerHTML = html;
+
+    // Render chart if countryId provided
+    if (countryId) {
+        // Defer slightly to ensure DOM updated
+        setTimeout(() => {
+            renderPopupChart(countryId);
+        }, 0);
+    }
+}
+
+// Nueva función: renderizar gráfico simple con D3 (línea anual)
+function renderPopupChart(countryId) {
+    // Requiere [`mapCtx`](js/map.js)
+    if (typeof mapCtx === 'undefined' || !mapCtx.immTransformed) {
+        return;
+    }
+
+    const yearMap = mapCtx.immTransformed.get(countryId);
+    const container = document.getElementById("popup-content");
+    if (!container) return;
+
+    // Limpiar chart anterior
+    const existing = container.querySelector('#popup-chart');
+    if (existing) existing.remove();
+
+    const chartDiv = document.createElement('div');
+    chartDiv.id = 'popup-chart';
+    chartDiv.style.width = '100%';
+    chartDiv.style.height = '200px';
+    container.appendChild(chartDiv);
+
+    if (!yearMap) {
+        chartDiv.innerHTML = '<p style="color:#ccc">No data available</p>';
+        return;
+    }
+
+    // Construir array [{year, value}]
+    const data = Array.from(yearMap.entries())
+        .map(([y, rows]) => ({ year: +y, value: d3.sum(rows, r => r.value || 0) }))
+        .sort((a, b) => a.year - b.year);
+
+    // dimensiones
+    const margin = {top: 8, right: 12, bottom: 24, left: 100};
+    const width = chartDiv.clientWidth || 400;
+    const height = 200;
+    const w = width - margin.left - margin.right;
+    const h = height - margin.top - margin.bottom;
+
+    // Crear SVG
+    const svg = d3.select(chartDiv)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('font-family', 'Inter, Arial, sans-serif') // fuente para elementos SVG
+        .style('font-size', '12px');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const x = d3.scaleLinear()
+        .domain(d3.extent(data, d => d.year))
+        .range([0, w]);
+
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(data, d => d.value) || 1])
+        .nice()
+        .range([h, 0]);
+
+    // añadir padding a las etiquetas del eje y quitar ticks exteriores
+    const xAxis = d3.axisBottom(x)
+        .ticks(Math.min(6, data.length))
+        .tickFormat(d3.format("d"))
+        .tickPadding(8)     // separa labels del eje
+        .tickSizeOuter(0);  // elimina el tick de fuera
+
+    const yAxis = d3.axisLeft(y)
+        .ticks(4)
+        .tickPadding(6)
+        .tickSizeOuter(0);
+
+    g.append('g')
+        .attr('transform', `translate(0,${h})`)
+        .call(xAxis)
+        .selectAll('text')
+        .attr('fill', '#bbb');
+        
+
+    g.append('g')
+        .call(yAxis)
+        .selectAll('text')
+        .attr('fill', '#bbb');
+        
+
+    // Line generator
+    const line = d3.line()
+        .x(d => x(d.year))
+        .y(d => y(d.value))
+        .defined(d => !isNaN(d.value));
+
+    g.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', '#9d28d3')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+
+    // puntos
+    g.selectAll('circle')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('cx', d => x(d.year))
+        .attr('cy', d => y(d.value))
+        .attr('r', 3)
+        .attr('fill', '#ffd6f8')
+        .attr('stroke', '#6b1f9b')
+        .attr('stroke-width', 0.5)
+        .append('title')
+        .text(d => `${d.year}: ${d.value}`);
+}
+
+

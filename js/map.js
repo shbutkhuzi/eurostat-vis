@@ -1,7 +1,8 @@
 const mapCtx = {
     MAP_WIDTH: 0,
     MAP_HEIGHT: 0,
-    GeoUrl: "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson", // "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_20M_2021_4326_LEVL_0.geojson", 
+    GeoUrl: "data/ne_50m_admin_0_countries.geojson", 
+    // "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_20M_2021_4326_LEVL_0.geojson", 
     europeCenter: [20, 52],
     NON_SELECTABLE_IMM_COUNTRY_COLOR: "#3e3e3e78",
     SELECTABLE_IMM_COUNTRY_COLOR: "#575757ff",
@@ -44,6 +45,21 @@ function drawImmFlow(event, D) {
         .call(mapCtx.zoom.transform, mapCtx.initialTransform);
     
     if (D.properties.ISO_A2_EH != prevCountry) {
+
+        let countryName = D.properties.NAME;
+
+        let totalEntries = mapCtx.immTransformed.has(D.properties.ISO_A2_EH)
+            ? d3.sum(
+                Array.from(mapCtx.immTransformed.get(D.properties.ISO_A2_EH).values())
+                    .flat()
+                    .map(x => x.value)
+            )
+            : 0;
+
+        updatePopupContent(`
+            <h2>${countryName}</h2>
+            <p><b>Total registros:</b> ${totalEntries}</p>
+            `, D.properties.ISO_A2_EH); // <-- ahora pasamos el country code para el gráfico
 
         d3.select("#mapG")
             .selectAll("path.countryPath")
