@@ -42,6 +42,19 @@ function startAutoPlay() {
     sliderState.isPlaying = true;
     updatePlayPauseIcon();
     
+    // Execute first iteration immediately
+    sliderState.currentYearIndex++;
+    
+    // Loop back to start if at the end
+    if (sliderState.currentYearIndex >= sliderState.availableYears.length) {
+        sliderState.currentYearIndex = 0;
+    }
+    
+    updateSliderPosition();
+    updateYearDisplay();
+    onSliderValueChange();
+    
+    // Then continue with interval
     sliderState.playInterval = setInterval(() => {
         // Move to next year
         sliderState.currentYearIndex++;

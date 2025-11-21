@@ -27,14 +27,16 @@ function drawFlowNetwork(selectedCountry){
     const flowG = d3.select("g#immFlowG").empty()
                         ? d3.select("#mapG").append("g").attr("id", "immFlowG")
                         : d3.select("g#immFlowG");
-
-    flowG.selectAll("*").remove();
+    
+    const countryFlowG = flowG.select(`g#${getCountryGroupId(selectedCountry)}`).empty()
+                        ? flowG.append("g").attr("id", getCountryGroupId(selectedCountry))
+                        : flowG.select(`g#${getCountryGroupId(selectedCountry)}`);
     
     const dstCountryCoords = mapCtx.countryInfo.get(selectedCountry);
 
     let particleSpeedScale = d3.scaleLog().domain(mapCtx.immValueExt).range([1000, 100]);
 
-    flowG.selectAll("g")
+    countryFlowG.selectAll("g")
         .data(selectedCountryData)
         .enter()
         .append("g")
@@ -120,6 +122,7 @@ function drawFlowNetwork(selectedCountry){
                     }
 
                     let path = d3.select(this)
+                        .attr("id", gradientId)
                         .attr("d", () => {
                             
                             const x1 = srcCountryCoords.px;
@@ -135,26 +138,46 @@ function drawFlowNetwork(selectedCountry){
                         .attr("stroke-width", 0.6)
                         .attr("stroke-dasharray", `${dashLength},${gapLength}`);
 
-                    function animatePath() {
-                        path.attr("stroke-dashoffset", dashArray)
+                    function animatePath(pathId, totalImm) {
+                        d3.select(`path#${pathId}`)
+                            .attr("stroke-dashoffset", dashArray)
                             .transition()
-                            .duration(particleSpeedScale(totalVal))
+                            .duration(particleSpeedScale(totalImm))
                             .ease(d3.easeLinear)
                             .attr("stroke-dashoffset", 0)
-                            .on("end", animatePath);
+                            .end().then(() => {
+                                animatePath(pathId, totalImm)
+                            });
                     }
 
-                    animatePath();
+                    animatePath(gradientId, totalVal);
 
                 });
         });
     
     firstYear = selectedCountryData ? d3.min(Array.from(selectedCountryData.keys())) : undefined;
 
-    flowG.select(getImmFlowYearGroupId(selectedYear))
-        .transition()
-        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .attr("opacity", 1);
+    
+
+    mapCtx.immDstCountries.forEach(country => {
+        const countryGroup = flowG.select(`g#${getCountryGroupId(country)}`);
+        
+        if (!countryGroup.empty() && country != selectedCountry) {
+            countryGroup
+                .transition()
+                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+                .attr("opacity", 0);
+        }
+    });
+
+    countryFlowG.transition()
+                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+                .attr("opacity", 1);
+
+    countryFlowG.select(getImmFlowYearGroupId(firstYear))
+                .transition()
+                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+                .attr("opacity", 1);
 };
 
 
@@ -169,9 +192,10 @@ function quadraticBezierPath(x1, y1, x2, y2){
 };
 
 
-function focusViewOnImmFlow(selectedYear){
+function focusViewOnImmFlow(selectedCountry, selectedYear){
 
     const flowG = d3.select("g#immFlowG")
+                    .select(`g#${getCountryGroupId(selectedCountry)}`)
                     .select(getImmFlowYearGroupId(selectedYear));
     
     if (flowG.empty()) {
@@ -231,29 +255,10 @@ function drawImmFlow(selectedCountry) {
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
-
-    d3.select("g#immFlowG").selectAll("g")
-        .transition()
-        .ease(d3.easeSinInOut)
-        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .attr("opacity", 0);
     
     if (selectedCountry != prevCountry) {
 
-        let countryName = D.properties.NAME;
-
-        let totalEntries = mapCtx.immTransformed.has(D.properties.ISO_A2_EH)
-            ? d3.sum(
-                Array.from(mapCtx.immTransformed.get(D.properties.ISO_A2_EH).values())
-                    .flat()
-                    .map(x => x.value)
-            )
-            : 0;
-
-        updatePopupContent(`
-            <h2>${countryName}</h2>
-            <p><b>Total registros:</b> ${totalEntries}</p>
-            `, D.properties.ISO_A2_EH); // <-- ahora pasamos el country code para el gráfico
+        updatePopupContent(selectedCountry);
 
         d3.select("#mapG")
             .selectAll("path.countryPath")
@@ -285,16 +290,24 @@ function drawImmFlow(selectedCountry) {
 
         d3.select("g#immFlowG").selectAll("g")
             .transition()
-            .ease(d3.easeSinInOut)
             .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0)
             .end()
             .then(() => {
                 drawFlowNetwork(selectedCountry);
-                focusViewOnImmFlow(selectedYear);
+                focusViewOnImmFlow(selectedCountry, selectedYear);
             });
 
     } else {
+        d3.select("g#immFlowG").selectAll("g")
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .attr("opacity", 0)
+            .selectAll("g")
+            .transition()
+            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+            .attr("opacity", 0);
+
         d3.select("svg")
             .transition()
             .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
@@ -356,22 +369,28 @@ function updateImmFlow(selectedCountry, selectedYear){
         .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
         .attr("opacity", 1);
 
-    d3.select("g#immFlowG").selectAll("g")
+    d3.select("g#immFlowG")
+        .select(`g#${getCountryGroupId(selectedCountry)}`)
+        .selectAll("g")
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
 
     d3.select("g#immFlowG")
+        .select(`g#${getCountryGroupId(selectedCountry)}`)
         .select(getImmFlowYearGroupId(selectedYear))
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 1);
     
-    focusViewOnImmFlow(selectedYear);
+    focusViewOnImmFlow(selectedCountry, selectedYear);
 };
 
+function getCountryGroupId(country){
+    return `${country}`.replace(/\s+/g, '-');
+}
 
 function getImmFlowYearGroupId(year){
     return `g#year-${year}`;
@@ -625,6 +644,7 @@ function loadData(){
 
             // checkImmDataIntegrity();
 
+            // console.log("immData:", mapCtx.immData);
             // console.log("immDstCountries:", mapCtx.immDstCountries);
             // console.log("immSrcCoutries:", mapCtx.immSrcCoutries);
             // console.log("immDataGrouped:", mapCtx.immDataGrouped);

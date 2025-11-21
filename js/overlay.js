@@ -102,31 +102,46 @@ function updateOverlayVisibility(countrySelected) {
     }
 }
 
-function updatePopupContent(html, countryId=null) {
+function updatePopupContent(selectedCountry) {
     //const popup = document.getElementById("popup-window");
     //popup.innerHTML = html;
 
     const popupContent = document.getElementById("popup-content");
     if (!popupContent) return;
-    popupContent.innerHTML = html;
 
-    // Render chart if countryId provided
-    if (countryId) {
+    selectedCountryData = mapCtx.immDataGrouped.get(selectedCountry);
+
+    let totalEntries = 0;
+    if (selectedCountryData) {
+        selectedCountryData.forEach((countryMap, year) => {
+            countryMap.forEach((entries, country) => {
+                totalEntries += d3.sum(entries.filter(x => x.sex === "T"), d => d.value);
+            });
+        });
+    }
+
+    popupContent.innerHTML = `
+            <h2>${selectedCountry}</h2>
+            <p><b>Total records:</b> ${totalEntries}</p>
+            `;
+
+    // Render chart if selectedCountry provided
+    if (selectedCountry) {
         // Defer slightly to ensure DOM updated
         setTimeout(() => {
-            renderPopupChart(countryId);
+            renderPopupChart(selectedCountry);
         }, 0);
     }
 }
 
 // Nueva función: renderizar gráfico simple con D3 (línea anual)
-function renderPopupChart(countryId) {
+function renderPopupChart(selectedCountry) {
     // Requiere [`mapCtx`](js/map.js)
-    if (typeof mapCtx === 'undefined' || !mapCtx.immTransformed) {
+    if (typeof mapCtx === 'undefined' || !mapCtx.immDataGrouped) {
         return;
     }
 
-    const yearMap = mapCtx.immTransformed.get(countryId);
+    const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
     const container = document.getElementById("popup-content");
     if (!container) return;
 
@@ -147,7 +162,13 @@ function renderPopupChart(countryId) {
 
     // Construir array [{year, value}]
     const data = Array.from(yearMap.entries())
-        .map(([y, rows]) => ({ year: +y, value: d3.sum(rows, r => r.value || 0) }))
+        .map(([y, countryMap]) => {
+            let totalValue = 0;
+            countryMap.forEach((entries) => {
+                totalValue += d3.sum(entries.filter(x => x.sex === "T"), d => d.value || 0);
+            });
+            return { year: +y, value: totalValue };
+        })
         .sort((a, b) => a.year - b.year);
 
     // dimensiones
