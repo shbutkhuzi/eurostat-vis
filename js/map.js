@@ -1,8 +1,6 @@
 const mapCtx = {
     MAP_WIDTH: 0,
     MAP_HEIGHT: 0,
-    GeoUrl: "data/ne_50m_admin_0_countries.geojson",
-    immDataUrl: "data/raw/estat_migr_imm5prv.csv",
     europeCenter: [20, 52],
     NON_SELECTABLE_IMM_COUNTRY_COLOR: "#3e3e3e78",
     SELECTABLE_IMM_COUNTRY_COLOR: "#575757ff",
@@ -22,7 +20,7 @@ let prevCountry = null;
 
 function drawFlowNetwork(selectedCountry){
 
-    const selectedCountryData = mapCtx.immDataGrouped.get(selectedCountry);
+    const selectedCountryData = dataCtx.immDataGrouped.get(selectedCountry);
 
     const flowG = d3.select("g#immFlowG").empty()
                         ? d3.select("#mapG").append("g").attr("id", "immFlowG")
@@ -32,7 +30,7 @@ function drawFlowNetwork(selectedCountry){
                         ? flowG.append("g").attr("id", getCountryGroupId(selectedCountry))
                         : flowG.select(`g#${getCountryGroupId(selectedCountry)}`);
     
-    const dstCountryCoords = mapCtx.countryInfo.get(selectedCountry);
+    const dstCountryCoords = dataCtx.countryInfo.get(selectedCountry);
 
     let particleSpeedScale = d3.scaleLog().domain(mapCtx.immValueExt).range([1000, 100]);
 
@@ -60,7 +58,7 @@ function drawFlowNetwork(selectedCountry){
                     const gapLength = 1;
                     const dashArray = dashLength + gapLength;
 
-                    const srcCountryCoords = mapCtx.countryInfo.get(srcCountry);
+                    const srcCountryCoords = dataCtx.countryInfo.get(srcCountry);
                     const gradientId = `gradient-${srcCountry}-${selectedCountry}-${d[0]}`.replace(/\s+/g, '-');
 
                     const gradient = defs.append("linearGradient")
@@ -146,7 +144,10 @@ function drawFlowNetwork(selectedCountry){
                             .ease(d3.easeLinear)
                             .attr("stroke-dashoffset", 0)
                             .end().then(() => {
-                                animatePath(pathId, totalImm)
+                                if (countryFlowG.attr("opacity") == 0) {
+                                    return;
+                                }
+                                animatePath(pathId, totalImm);
                             });
                     }
 
@@ -159,14 +160,18 @@ function drawFlowNetwork(selectedCountry){
 
     
 
-    mapCtx.immDstCountries.forEach(country => {
+    dataCtx.immDstCountries.forEach(country => {
         const countryGroup = flowG.select(`g#${getCountryGroupId(country)}`);
         
         if (!countryGroup.empty() && country != selectedCountry) {
             countryGroup
                 .transition()
                 .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-                .attr("opacity", 0);
+                .attr("opacity", 0)
+                .end()
+                .then(() => {
+                    countryGroup.remove();
+                });
         }
     });
 
@@ -239,13 +244,13 @@ function focusViewOnImmFlow(selectedCountry, selectedYear){
 
 function drawImmFlow(selectedCountry) {
 
-    if (!mapCtx.immDstCountries.includes(selectedCountry)) {
+    if (!dataCtx.immDstCountries.includes(selectedCountry)) {
         return;
     }
 
     d3.select("#mapG")
         .selectAll("path.countryPath")
-        .filter(d => mapCtx.immDstCountries.includes(d.properties.GEOUNIT))
+        .filter(d => dataCtx.immDstCountries.includes(d.properties.GEOUNIT))
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
@@ -267,7 +272,7 @@ function drawImmFlow(selectedCountry) {
             .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
             .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
 
-        const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
+        const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
         selectedYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined
         let selectedYearData = yearMap.get(selectedYear);
 
@@ -303,10 +308,10 @@ function drawImmFlow(selectedCountry) {
             .transition()
             .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
             .attr("opacity", 0)
-            .selectAll("g")
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("opacity", 0);
+            .end()
+            .then((d) => {
+                d3.select("g#immFlowG").remove();
+            });
 
         d3.select("svg")
             .transition()
@@ -331,7 +336,7 @@ function updateImmFlow(selectedCountry, selectedYear){
 
     d3.select("#mapG")
         .selectAll("path.countryPath")
-        .filter(d => mapCtx.immDstCountries.includes(d.properties.GEOUNIT))
+        .filter(d => dataCtx.immDstCountries.includes(d.properties.GEOUNIT))
         .transition()
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
         .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
@@ -349,7 +354,7 @@ function updateImmFlow(selectedCountry, selectedYear){
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
         .attr("opacity", 0);
 
-    const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
+    const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
     let selectedYearData = yearMap.get(selectedYear);
 
     d3.select("#mapG")
@@ -403,7 +408,7 @@ function drawImmMap(){
     
     let featureG = d3.select("#mapG")
                         .selectAll("g.feature")
-                        .data(mapCtx.geoJson.features)
+                        .data(dataCtx.geoJson.features)
                         .enter()
                         .append("g")
                         .attr("class", "feature")
@@ -412,12 +417,12 @@ function drawImmMap(){
     let paths = featureG.append("path")
                 .attr("class", "countryPath")
                 .attr("d", mapCtx.geoPathGen)
-                .attr("fill", (d) => mapCtx.immDstCountries.includes(d.properties.GEOUNIT)
+                .attr("fill", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
                             ? mapCtx.SELECTABLE_IMM_COUNTRY_COLOR
                             : mapCtx.NON_SELECTABLE_IMM_COUNTRY_COLOR)
                 .attr("stroke", mapCtx.BORDER_COLOR)
                 .attr("stroke-width", 0.5)
-                .style("cursor", (d) => mapCtx.immDstCountries.includes(d.properties.GEOUNIT)
+                .style("cursor", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
                             ? "pointer"
                             : "default"
                 );
@@ -434,14 +439,14 @@ function drawImmMap(){
 
     paths
         .on("mouseenter", function (event, d) {
-            if (mapCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
+            if (dataCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
                 d3.select(this)
                     .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
                     .attr("stroke-width", 1.5 / currentZoomK);
             }
         })
         .on("mouseleave", function (event, d) {
-            if (mapCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
+            if (dataCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
                 d3.select(this)
                     .attr("stroke", mapCtx.BORDER_COLOR)
                     .attr("stroke-width", 0.5 / currentZoomK);
@@ -472,7 +477,7 @@ function drawImmMap(){
             d3.select("svg").style("cursor", "grab");
             d3.select("g#mapG")
                 .selectAll("path.countryPath")
-                .style("cursor", (d) => mapCtx.immDstCountries.includes(d.properties.GEOUNIT)
+                .style("cursor", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
                                         ? "pointer"
                                         : "default"
                     );
@@ -480,7 +485,7 @@ function drawImmMap(){
 
     mapCtx.initialTransform = d3.zoomIdentity
         .translate(mapCtx.MAP_WIDTH / 2, mapCtx.MAP_HEIGHT / 2)
-        .scale(6)
+        .scale(5)
         .translate(-mapCtx.projection(mapCtx.europeCenter)[0], -mapCtx.projection(mapCtx.europeCenter)[1]);
 
     d3.select("svg")
@@ -496,168 +501,6 @@ function drawImmMap(){
 
 };
 
-// If immigration data passes these checks once, it is not necessary to run every time
-function checkImmDataIntegrity(){
-
-    let missingCountries = [];
-    let invalidCoordinates = [];
-    let incompleteSexData = [];
-
-    mapCtx.immDstCountries.forEach(country => {
-        if (!mapCtx.countryInfo.has(country)) {
-            missingCountries.push(country);
-        } else {
-            const info = mapCtx.countryInfo.get(country);
-            if (info.center_x == null || info.center_y == null || 
-                typeof info.center_x !== 'number' || typeof info.center_y !== 'number') {
-                invalidCoordinates.push(country);
-            }
-        }
-    });
-
-    mapCtx.immSrcCoutries.forEach(country => {
-        if (!mapCtx.countryInfo.has(country)) {
-            if (!missingCountries.includes(country)) {
-                missingCountries.push(country);
-            }
-        } else {
-            const info = mapCtx.countryInfo.get(country);
-            if (info.center_x == null || info.center_y == null || 
-                typeof info.center_x !== 'number' || typeof info.center_y !== 'number') {
-                if (!invalidCoordinates.includes(country)) {
-                    invalidCoordinates.push(country);
-                }
-            }
-        }
-    });
-
-    // Check sex data completeness: for each dstCountry, year and srcCountry there must be
-    // either 3 different values: M, F and T;
-    // or 2 different values: M and T or F and T;
-    // or 1 distinct value: T;
-    mapCtx.immDataGrouped.forEach((yearMap, dstCountry) => {
-        yearMap.forEach((srcCountryMap, year) => {
-            srcCountryMap.forEach((records, srcCountry) => {
-                if (!Array.isArray(records) || records.length === 0) {
-                    incompleteSexData.push({ dstCountry, year, srcCountry, issue: `Empty or invalid records` });
-                } else {
-                    const sexValues = records.map(r => r.sex).sort();
-                    const uniqueSex = [...new Set(sexValues)];
-                    
-                    if (records.length === 3) {
-                        if (uniqueSex.length !== 3 || !uniqueSex.includes("M") || !uniqueSex.includes("F") || !uniqueSex.includes("T")) {
-                            incompleteSexData.push({ dstCountry, year, srcCountry, issue: `Expected [F, M, T], found [${sexValues.join(', ')}]` });
-                        }
-                    } else if (records.length === 2) {
-                        const hasT = uniqueSex.includes("T");
-                        const hasM = uniqueSex.includes("M");
-                        const hasF = uniqueSex.includes("F");
-                        if (!hasT || !(hasM || hasF)) {
-                            incompleteSexData.push({ dstCountry, year, srcCountry, issue: `Expected [M, T] or [F, T], found [${sexValues.join(', ')}]` });
-                        }
-                    } else if (records.length === 1) {
-                        if (sexValues[0] !== "T") {
-                            incompleteSexData.push({ dstCountry, year, srcCountry, issue: `Expected [T], found [${sexValues.join(', ')}]` });
-                        }
-                    } else {
-                        incompleteSexData.push({ dstCountry, year, srcCountry, issue: `Unexpected record count: ${records.length}` });
-                    }
-                }
-            });
-        });
-    });
-
-    if (missingCountries.length > 0) {
-        console.warn("Missing countries in geoJSON:", missingCountries);
-    }
-
-    if (invalidCoordinates.length > 0) {
-        console.warn("Countries with invalid coordinates:", invalidCoordinates);
-    }
-
-    if (incompleteSexData.length > 0) {
-        console.warn("Incomplete sex data entries:", incompleteSexData);
-    }
-
-    if (missingCountries.length === 0 && invalidCoordinates.length === 0 && incompleteSexData.length === 0) {
-        console.log("Data integrity check passed!");
-    }
-
-}
-
-
-function loadData(){
-    
-    immData = d3.csv(mapCtx.immDataUrl, function(d) {
-        
-        const value = +d.OBS_VALUE;
-        const dstCountry = d["Geopolitical entity (reporting)"];
-        const srcCountry = d["Geopolitical entity (partner)"];
-
-        if (value === 0 || dstCountry === srcCountry) {
-            return null;
-        }
-
-        return {
-            dstCountry: dstCountry,
-            srcCountry: srcCountry,
-            year: +d.TIME_PERIOD,
-            value: value,
-            sex: d.sex
-        };
-
-    });
-
-    geoJson = d3.json(mapCtx.GeoUrl);
-
-    mapCtx.countryInfo = new Map();
-    
-    Promise.all([immData, geoJson])
-        .then((data) => {
-
-            [immData, geoJson] = data;
-
-            mapCtx.immData = immData;
-            mapCtx.geoJson = geoJson;
-
-            mapCtx.immDstCountries = [...new Set(immData.map(d => d.dstCountry))];
-            mapCtx.immSrcCoutries = [...new Set(immData.map(d => d.srcCountry))];
-
-            mapCtx.projection = d3.geoMercator().fitSize([mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT], mapCtx.geoJson);
-            mapCtx.immValueExt = d3.extent(mapCtx.immData.filter(d => d.sex === "T"), (d) => d.value);
-
-            geoJson.features.forEach(feature => {
-                const [px, py] = mapCtx.projection([feature.properties.LABEL_X, feature.properties.LABEL_Y]);
-
-                mapCtx.countryInfo.set(
-                    feature.properties.GEOUNIT, 
-                    {
-                        center_x: feature.properties.LABEL_X, 
-                        center_y: feature.properties.LABEL_Y,
-                        px: px,
-                        py: py
-                    }
-                );
-            });
-
-            mapCtx.immDataGrouped = d3.group(immData, d => d.dstCountry, d => d.year, d => d.srcCountry);
-
-            // checkImmDataIntegrity();
-
-            // console.log("immData:", mapCtx.immData);
-            // console.log("immDstCountries:", mapCtx.immDstCountries);
-            // console.log("immSrcCoutries:", mapCtx.immSrcCoutries);
-            // console.log("immDataGrouped:", mapCtx.immDataGrouped);
-            // console.log("countryInfo:", mapCtx.countryInfo);
-            // console.log("geoJson:", mapCtx.geoJson);
-
-            drawImmMap();
-
-        }).catch(function(error){console.log(error)});
-
-};
-
-
 function createMap(){
 
     console.log("Using D3 v"+d3.version);
@@ -672,7 +515,9 @@ function createMap(){
     svgEl.attr("height", mapCtx.MAP_HEIGHT);
     svgEl.append("g").attr("id", "mapG");
 
-    loadData();
-};
+    loadData().then(() => {
+        drawImmMap();
+    });
 
+};
 

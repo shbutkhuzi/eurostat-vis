@@ -124,8 +124,8 @@ function loadYearsForCountry(country) {
     
     sliderState.currentCountry = country;
     
-    // Get years from mapCtx
-    const yearMap = mapCtx.immDataGrouped.get(country);
+    // Get years from dataCtx
+    const yearMap = dataCtx.immDataGrouped.get(country);
     
     if (yearMap) {
         // Extract all years and sort them

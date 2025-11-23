@@ -109,7 +109,7 @@ function updatePopupContent(selectedCountry) {
     const popupContent = document.getElementById("popup-content");
     if (!popupContent) return;
 
-    selectedCountryData = mapCtx.immDataGrouped.get(selectedCountry);
+    selectedCountryData = dataCtx.immDataGrouped.get(selectedCountry);
 
     let totalEntries = 0;
     if (selectedCountryData) {
@@ -137,11 +137,11 @@ function updatePopupContent(selectedCountry) {
 // Nueva función: renderizar gráfico simple con D3 (línea anual)
 function renderPopupChart(selectedCountry) {
     // Requiere [`mapCtx`](js/map.js)
-    if (typeof mapCtx === 'undefined' || !mapCtx.immDataGrouped) {
+    if (typeof mapCtx === 'undefined' || !dataCtx.immDataGrouped) {
         return;
     }
 
-    const yearMap = mapCtx.immDataGrouped.get(selectedCountry);
+    const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
     const container = document.getElementById("popup-content");
     if (!container) return;
 
