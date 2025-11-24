@@ -55,7 +55,7 @@ function drawFlowNetwork(selectedCountry){
                     srcCountryData = p[1];
 
                     const dashLength = 1;
-                    const gapLength = 1;
+                    const gapLength = 1.5;
                     const dashArray = dashLength + gapLength;
 
                     const srcCountryCoords = dataCtx.countryInfo.get(srcCountry);
@@ -119,7 +119,7 @@ function drawFlowNetwork(selectedCountry){
                             .attr("stop-color", "#9e6aaaff");
                     }
 
-                    let path = d3.select(this)
+                    d3.select(this)
                         .attr("id", gradientId)
                         .attr("d", () => {
                             
@@ -133,7 +133,8 @@ function drawFlowNetwork(selectedCountry){
                         .style("pointer-events", "none")
                         .attr("fill", "none")
                         .attr("stroke", `url(#${gradientId})`)
-                        .attr("stroke-width", 0.6)
+                        .attr("stroke-width", 0.5)
+                        .attr("stroke-linecap", "round")
                         .attr("stroke-dasharray", `${dashLength},${gapLength}`);
 
                     function animatePath(pathId, totalImm) {
@@ -414,18 +415,12 @@ function drawImmMap(){
                         .attr("class", "feature")
                         .attr("id", (d) => d.properties.GEOUNIT);
 
-    let paths = featureG.append("path")
+    featureG.append("path")
                 .attr("class", "countryPath")
                 .attr("d", mapCtx.geoPathGen)
                 .attr("fill", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
                             ? mapCtx.SELECTABLE_IMM_COUNTRY_COLOR
-                            : mapCtx.NON_SELECTABLE_IMM_COUNTRY_COLOR)
-                .attr("stroke", mapCtx.BORDER_COLOR)
-                .attr("stroke-width", 0.5)
-                .style("cursor", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
-                            ? "pointer"
-                            : "default"
-                );
+                            : mapCtx.NON_SELECTABLE_IMM_COUNTRY_COLOR);
 
     featureG.append("path")
                 .attr("class", "centroidPath")
@@ -437,24 +432,35 @@ function drawImmMap(){
                 .attr("opacity", 0)
                 .style("pointer-events", "none");
 
-    paths
-        .on("mouseenter", function (event, d) {
-            if (dataCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
-                d3.select(this)
-                    .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
-                    .attr("stroke-width", 1.5 / currentZoomK);
-            }
-        })
-        .on("mouseleave", function (event, d) {
-            if (dataCtx.immDstCountries.includes(d.properties.GEOUNIT)) {
-                d3.select(this)
-                    .attr("stroke", mapCtx.BORDER_COLOR)
-                    .attr("stroke-width", 0.5 / currentZoomK);
-            }
-        })
-        .on("click", function (event, d) {
-            drawImmFlow(d.properties.GEOUNIT);
-        });
+    let bordersG = d3.select("#mapG").append("g").attr("id", "bordersG")
+                        .selectAll("g.borders")
+                        .data(dataCtx.bordersJson.features)
+                        .enter()
+                        .append("g")
+                        .attr("class", "borders")
+                        .attr("id", (d) => d.properties.GEOUNIT)
+                        .append("path")
+                        .attr("class", "borderPath")
+                        .attr("d", mapCtx.geoPathGen)
+                        .attr("stroke", mapCtx.BORDER_COLOR)
+                        .attr("stroke-width", 0.5)
+                        .attr("fill", "transparent");
+
+    bordersG.append("title").text((d) => d.properties.GEOUNIT);
+
+    bordersG.on("mouseenter", function (event, d) {
+                                d3.select(this)
+                                    .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
+                                    .attr("stroke-width", 1.5 / currentZoomK);
+                        })
+                        .on("mouseleave", function (event, d) {
+                                d3.select(this)
+                                    .attr("stroke", mapCtx.BORDER_COLOR)
+                                    .attr("stroke-width", 0.5 / currentZoomK);
+                        })
+                        .on("click", function (event, d) {
+                            drawImmFlow(d.properties.GEOUNIT);
+                        });
 
     const b = d3.select("#mapG").node().getBBox();
     const kMin = Math.max(mapCtx.MAP_HEIGHT / b.height, mapCtx.MAP_WIDTH / b.width);
@@ -466,7 +472,7 @@ function drawImmMap(){
         .on("zoom", function(event) {
             currentZoomK = event.transform.k;
             d3.select("#mapG").attr("transform", event.transform);
-            paths.attr("stroke-width", 0.5 / currentZoomK);
+            bordersG.attr("stroke-width", 0.5 / currentZoomK);
 
             if (event.sourceEvent && event.sourceEvent.type === "mousemove") {
                 d3.select("svg").style("cursor", "grabbing");
@@ -474,13 +480,8 @@ function drawImmMap(){
             }
         })
         .on("end", function() {
-            d3.select("svg").style("cursor", "grab");
-            d3.select("g#mapG")
-                .selectAll("path.countryPath")
-                .style("cursor", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
-                                        ? "pointer"
-                                        : "default"
-                    );
+            d3.select("svg").style("cursor", "default");
+            d3.select("g#mapG").selectAll("path").style("cursor", "pointer");
         });
 
     mapCtx.initialTransform = d3.zoomIdentity
