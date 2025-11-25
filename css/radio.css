@@ -1,0 +1,86 @@
+/*
+Based on example from https://stackoverflow.com/a
+Posted by Ahmed M. Zanaty
+Retrieved 2025-11-25, License - CC BY-SA 4.0
+Adapted with project colors and styling
+*/
+
+/* Radio button container */
+#radio-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: fit-content;
+    height: 50px;
+    border: 2px solid #8b5cf6;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    backdrop-filter: blur(10px);
+    background: rgba(18, 18, 18, 0.75);
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    pointer-events: auto;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+    transition: all 0.3s ease;
+    visibility: hidden;
+}
+
+#radio-container.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    visibility: visible;
+}
+
+/* Hide radio inputs */
+#radio-container input {
+    display: none;
+}
+
+/* Radio labels */
+#radio-container label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 24px;
+    border-right: 2px solid rgba(139, 92, 246, 0.3);
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    user-select: none;
+    position: relative;
+}
+
+/* Pseudo-element to reserve space for bold text */
+#radio-container label::before {
+    content: attr(data-text);
+    font-weight: 600;
+    height: 0;
+    visibility: hidden;
+    overflow: hidden;
+    user-select: none;
+    pointer-events: none;
+    position: absolute;
+}
+
+#radio-container label:last-of-type {
+    border-right: 0;
+}
+
+#radio-container label:hover {
+    background: rgba(139, 92, 246, 0.2);
+    color: #bbb;
+}
+
+#radio-container input:checked + label {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    font-weight: 600;
+}

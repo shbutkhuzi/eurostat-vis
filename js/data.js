@@ -332,20 +332,20 @@ function loadData(){
                     d => d.srcCountry, d => d.year, d => d.dstCountry, d => d.age
                 );
 
-                checkImmDataIntegrity();
+                // checkImmDataIntegrity();
 
-                console.log("immData:", dataCtx.immData);
-                console.log("immDstCountries:", dataCtx.immDstCountries);
-                console.log("immSrcCoutries:", dataCtx.immSrcCountries);
-                console.log("immDataGrouped:", dataCtx.immDataGrouped);
-                console.log("immDataWithAgeGrGrouped:", dataCtx.immDataWithAgeGrGrouped);
-                console.log("emiData:", dataCtx.emiData);
-                console.log("emiDstCountries:", dataCtx.emiDstCountries);
-                console.log("emiSrcCoutries:", dataCtx.emiSrcCountries);
-                console.log("emiDataGrouped:", dataCtx.emiDataGrouped);
-                console.log("emiDataWithAgeGrGrouped:", dataCtx.emiDataWithAgeGrGrouped);
-                console.log("countryInfo:", dataCtx.countryInfo);
-                console.log("geoJson:", dataCtx.geoJson);
+                // console.log("immData:", dataCtx.immData);
+                // console.log("immDstCountries:", dataCtx.immDstCountries);
+                // console.log("immSrcCoutries:", dataCtx.immSrcCountries);
+                // console.log("immDataGrouped:", dataCtx.immDataGrouped);
+                // console.log("immDataWithAgeGrGrouped:", dataCtx.immDataWithAgeGrGrouped);
+                // console.log("emiData:", dataCtx.emiData);
+                // console.log("emiDstCountries:", dataCtx.emiDstCountries);
+                // console.log("emiSrcCoutries:", dataCtx.emiSrcCountries);
+                // console.log("emiDataGrouped:", dataCtx.emiDataGrouped);
+                // console.log("emiDataWithAgeGrGrouped:", dataCtx.emiDataWithAgeGrGrouped);
+                // console.log("countryInfo:", dataCtx.countryInfo);
+                // console.log("geoJson:", dataCtx.geoJson);
                 
                 resolve();
 

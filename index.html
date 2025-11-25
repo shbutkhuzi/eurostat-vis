@@ -10,8 +10,10 @@
         <script type="text/javascript" src="js/data.js"></script>
         <script type="text/javascript" src="js/overlay.js"></script>
         <script type="text/javascript" src="js/slider.js"></script>
+        <script type="text/javascript" src="js/radio.js"></script>
         <link rel="stylesheet" href="css/overlay.css">
         <link rel="stylesheet" href="css/slider.css">
+        <link rel="stylesheet" href="css/radio.css">
         <style>
 
             html, body {
@@ -35,7 +37,7 @@
 
     </head>
 
-    <body onload="createMap(); initOverlay(); initSlider();">
+    <body onload="createMap(); initOverlay(); initSlider(); initRadio();">
         <div id="main"></div>
         <div id="overlay-container">
             <button id="details-button">
@@ -58,6 +60,18 @@
                 <input type="range" id="year-slider" min="0" max="0" value="0" step="1">
             </div>
             <div id="year-display"></div>
+        </div>
+        <!-- 
+        Based on example from https://stackoverflow.com/a
+        Posted by Ahmed M. Zanaty
+        Retrieved 2025-11-25, License - CC BY-SA 4.0
+        -->
+        <div id="radio-container">
+            <input type="radio" id="immigration-radio" name="data-mode" value="immigration" checked>
+            <label for="immigration-radio" data-text="Immigration">Immigration</label>
+            
+            <input type="radio" id="emigration-radio" name="data-mode" value="emigration">
+            <label for="emigration-radio" data-text="Emigration">Emigration</label>
         </div>
     </body>
 

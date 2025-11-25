@@ -330,6 +330,10 @@ function drawImmFlow(selectedCountry) {
     if (typeof updateSliderVisibility === 'function') {
         updateSliderVisibility(prevCountry !== null, selectedCountry);
     }
+    
+    if (typeof updateRadioVisibility === 'function') {
+        updateRadioVisibility(prevCountry !== null);
+    }
 };
 
 
