@@ -116,7 +116,7 @@ function updateYearDisplay() {
 }
 
 // Load years for selected country
-function loadYearsForCountry(country) {
+function loadYearsForCountry(country, selectedYear) {
     // Stop any ongoing auto-play
     if (sliderState.isPlaying) {
         stopAutoPlay();
@@ -125,18 +125,28 @@ function loadYearsForCountry(country) {
     sliderState.currentCountry = country;
     
     // Get years from dataCtx
-    const yearMap = dataCtx.immDataGrouped.get(country);
+    let yearMap;
+    if (getCurrentMode() === "immigration") {
+        yearMap = dataCtx.immDataGrouped.get(country);
+    } else if (getCurrentMode() === "emigration") {
+        yearMap = dataCtx.emiDataGrouped.get(country);
+    } else {
+        console.error("Current mode: ", getCurrentMode(), " not allowed");
+    }
+    
     
     if (yearMap) {
         // Extract all years and sort them
         sliderState.availableYears = Array.from(yearMap.keys()).sort((a, b) => a - b);
-        sliderState.currentYearIndex = 0; // Start at minimum year
+        
+        // Set current year index to match selectedYear
+        sliderState.currentYearIndex = sliderState.availableYears.indexOf(selectedYear);
         
         // Update slider attributes
         const slider = document.getElementById('year-slider');
         slider.min = 0;
         slider.max = sliderState.availableYears.length - 1;
-        slider.value = 0;
+        slider.value = sliderState.currentYearIndex;
         slider.step = 1;
         
         // Update display
@@ -192,13 +202,13 @@ function onSliderValueChange() {
     const currentYear = getCurrentYear();
     // console.log('Slider changed to year:', currentYear, 'for country:', sliderState.currentCountry);
     
-    updateImmFlow(sliderState.currentCountry, currentYear);
+    updateFlow(sliderState.currentCountry, currentYear);
 }
 
 // Update slider visibility based on country selection
-function updateSliderVisibility(countrySelected, selectedCountry = null) {
+function updateSliderVisibility(countrySelected, selectedCountry = null, selectedYear) {
     if (countrySelected && selectedCountry) {
-        loadYearsForCountry(selectedCountry);
+        loadYearsForCountry(selectedCountry, selectedYear);
     } else {
         clearSlider();
     }

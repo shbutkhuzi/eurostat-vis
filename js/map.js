@@ -1,10 +1,10 @@
 const mapCtx = {
     MAP_WIDTH: 0,
     MAP_HEIGHT: 0,
-    europeCenter: [20, 52],
-    NON_SELECTABLE_IMM_COUNTRY_COLOR: "#3e3e3e78",
-    SELECTABLE_IMM_COUNTRY_COLOR: "#575757ff",
-    SELECTED_IMM_COUNTRY_COLOR: "#6f6076ff",
+    EUROPE_CENTER: [20, 52],
+    NON_SELECTABLE_COUNTRY_COLOR: "#3e3e3e78",
+    SELECTABLE_COUNTRY_COLOR: "#575757ff",
+    SELECTED_COUNTRY_COLOR: "#6f6076ff",
     BORDER_COLOR: "#DDD",
     BORDER_COLOR_HIGHLIGHTED: "#ffffffff",
     SELECTED_CENTROID_COLOR: "#9d28d3ff",
@@ -15,175 +15,191 @@ const mapCtx = {
 };
 
 let currentZoomK = 1;
-let prevCountry = null;
+let currSelectedCountry = null;
+let currSelectedYear = null;
+
+
+function drawFlowPath(element, partnerCountry, partnerCountryData, selectedCountryCoords, pathId, defs, bezierInvert = false){
+
+    const dashLength = 1;
+    const gapLength = 1.5;
+    mapCtx.dashArray = dashLength + gapLength;
+
+    const partnerCountryCoords = dataCtx.countryInfo.get(partnerCountry);
+    const gradientId = `gradient-${pathId}`;
+
+    const gradient = defs.append("linearGradient")
+        .attr("id", gradientId)
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("x1", partnerCountryCoords.px)
+        .attr("y1", partnerCountryCoords.py)
+        .attr("x2", selectedCountryCoords.px)
+        .attr("y2", selectedCountryCoords.py);
+
+    const gradientMargin = 10;
+
+    if (partnerCountryData.length === 3) {
+        maleVal = partnerCountryData.find(item => item.sex === "M").value;
+        totalVal = partnerCountryData.find(item => item.sex === "T").value;
+        maleRatio = (maleVal/totalVal) * 100;
+
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#2196F3");
+        gradient.append("stop")
+            .attr("offset", `${maleRatio-gradientMargin}%`)
+            .attr("stop-color", "#2196F3");
+        gradient.append("stop")
+            .attr("offset", `${maleRatio+gradientMargin}%`)
+            .attr("stop-color", "#F44336");
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#F44336");
+
+    } else if (partnerCountryData.length === 2) {
+        maleVal = partnerCountryData.find(item => item.sex === "M")?.value || 0;
+        femaleVal = partnerCountryData.find(item => item.sex === "F")?.value || 0;
+        totalVal = partnerCountryData.find(item => item.sex === "T").value;
+
+        if (femaleVal) {
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#F44336");
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#F44336");
+        }else if (maleVal) {
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", "#2196F3");
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", "#2196F3");
+        }
+    } else if (partnerCountryData.length === 1) {
+        totalVal = partnerCountryData.find(item => item.sex === "T").value;
+        gradient.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", "#9e6aaaff");
+        gradient.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", "#9e6aaaff");
+    }
+
+    d3.select(element)
+        .attr("id", pathId)
+        .attr("d", () => {
+
+            const x1 = partnerCountryCoords.px;
+            const y1 = partnerCountryCoords.py;
+            const x2 = selectedCountryCoords.px;
+            const y2 = selectedCountryCoords.py;
+            
+            if (bezierInvert) {
+                return quadraticBezierPath(x2, y2, x1, y1);
+            } else {
+                return quadraticBezierPath(x1, y1, x2, y2);
+            }
+            
+        })
+        .style("pointer-events", "none")
+        .attr("fill", "none")
+        .attr("stroke", `url(#${gradientId})`)
+        .attr("stroke-width", 0.5)
+        .attr("stroke-linecap", "round")
+        .attr("stroke-dasharray", `${dashLength},${gapLength}`)
+        .attr("migr-val", totalVal);
+}
+
+function animatePath(pathId) {
+    const pathElement = d3.select(`path#${pathId}`);
+    const totalVal = pathElement.attr("migr-val");
+    
+    pathElement
+        .attr("stroke-dashoffset", mapCtx.dashArray)
+        .transition()
+        .duration(mapCtx.particleSpeedScale(totalVal))
+        .ease(d3.easeLinear)
+        .attr("stroke-dashoffset", 0)
+        .end().then(() => {
+            const parentGroup = d3.select(pathElement.node().parentNode);
+            
+            if (parentGroup.attr("opacity") == 0) {
+                return;
+            }
+            
+            animatePath(pathId);
+        });
+}
 
 
 function drawFlowNetwork(selectedCountry){
 
-    const selectedCountryData = dataCtx.immDataGrouped.get(selectedCountry);
+    const selectedImmCountryData = dataCtx.immDataGrouped.get(selectedCountry);
+    const selectedEmiCountryData = dataCtx.emiDataGrouped.get(selectedCountry);
 
-    const flowG = d3.select("g#immFlowG").empty()
-                        ? d3.select("#mapG").append("g").attr("id", "immFlowG")
-                        : d3.select("g#immFlowG");
-    
-    const countryFlowG = flowG.select(`g#${getCountryGroupId(selectedCountry)}`).empty()
-                        ? flowG.append("g").attr("id", getCountryGroupId(selectedCountry))
-                        : flowG.select(`g#${getCountryGroupId(selectedCountry)}`);
-    
-    const dstCountryCoords = dataCtx.countryInfo.get(selectedCountry);
+    const flowG = d3.select("g#migrFlowG").empty()
+                        ? d3.select("#mapG").append("g").attr("id", "migrFlowG")
+                        : d3.select("g#migrFlowG");
 
-    let particleSpeedScale = d3.scaleLog().domain(mapCtx.immValueExt).range([1000, 100]);
-
-    countryFlowG.selectAll("g")
-        .data(selectedCountryData)
-        .enter()
-        .append("g")
-        .attr("id", (d) => `year-${d[0]}`)
-        .each(function(d) {
-
-            const defs = d3.select(this)
-                            .attr("opacity", 0)
-                            .append("defs");
-
-            d3.select(this).selectAll("path")
-                .data(d[1])
-                .enter()
-                .append("path")
-                .each(function(p) {
-
-                    srcCountry = p[0];
-                    srcCountryData = p[1];
-
-                    const dashLength = 1;
-                    const gapLength = 1.5;
-                    const dashArray = dashLength + gapLength;
-
-                    const srcCountryCoords = dataCtx.countryInfo.get(srcCountry);
-                    const gradientId = `gradient-${srcCountry}-${selectedCountry}-${d[0]}`.replace(/\s+/g, '-');
-
-                    const gradient = defs.append("linearGradient")
-                        .attr("id", gradientId)
-                        .attr("gradientUnits", "userSpaceOnUse")
-                        .attr("x1", srcCountryCoords.px)
-                        .attr("y1", srcCountryCoords.py)
-                        .attr("x2", dstCountryCoords.px)
-                        .attr("y2", dstCountryCoords.py);
-
-                    const gradientMargin = 10;
-
-                    if (srcCountryData.length === 3) {
-                        maleVal = srcCountryData.find(item => item.sex === "M").value;
-                        totalVal = srcCountryData.find(item => item.sex === "T").value;
-                        maleRatio = (maleVal/totalVal) * 100;
-
-                        gradient.append("stop")
-                            .attr("offset", "0%")
-                            .attr("stop-color", "#2196F3");
-                        gradient.append("stop")
-                            .attr("offset", `${maleRatio-gradientMargin}%`)
-                            .attr("stop-color", "#2196F3");
-                        gradient.append("stop")
-                            .attr("offset", `${maleRatio+gradientMargin}%`)
-                            .attr("stop-color", "#F44336");
-                        gradient.append("stop")
-                            .attr("offset", "100%")
-                            .attr("stop-color", "#F44336");
-
-                    } else if (srcCountryData.length === 2) {
-                        maleVal = srcCountryData.find(item => item.sex === "M")?.value || 0;
-                        femaleVal = srcCountryData.find(item => item.sex === "F")?.value || 0;
-                        totalVal = srcCountryData.find(item => item.sex === "T").value;
-
-                        if (femaleVal) {
-                            gradient.append("stop")
-                                .attr("offset", "0%")
-                                .attr("stop-color", "#F44336");
-                            gradient.append("stop")
-                                .attr("offset", "100%")
-                                .attr("stop-color", "#F44336");
-                        }else if (maleVal) {
-                            gradient.append("stop")
-                                .attr("offset", "0%")
-                                .attr("stop-color", "#2196F3");
-                            gradient.append("stop")
-                                .attr("offset", "100%")
-                                .attr("stop-color", "#2196F3");
-                        }
-                    } else if (srcCountryData.length === 1) {
-                        totalVal = srcCountryData.find(item => item.sex === "T").value;
-                        gradient.append("stop")
-                            .attr("offset", "0%")
-                            .attr("stop-color", "#9e6aaaff");
-                        gradient.append("stop")
-                            .attr("offset", "100%")
-                            .attr("stop-color", "#9e6aaaff");
-                    }
-
-                    d3.select(this)
-                        .attr("id", gradientId)
-                        .attr("d", () => {
-                            
-                            const x1 = srcCountryCoords.px;
-                            const y1 = srcCountryCoords.py;
-                            const x2 = dstCountryCoords.px;
-                            const y2 = dstCountryCoords.py;
-
-                            return quadraticBezierPath(x1, y1, x2, y2);
-                        })
-                        .style("pointer-events", "none")
-                        .attr("fill", "none")
-                        .attr("stroke", `url(#${gradientId})`)
-                        .attr("stroke-width", 0.5)
-                        .attr("stroke-linecap", "round")
-                        .attr("stroke-dasharray", `${dashLength},${gapLength}`);
-
-                    function animatePath(pathId, totalImm) {
-                        d3.select(`path#${pathId}`)
-                            .attr("stroke-dashoffset", dashArray)
-                            .transition()
-                            .duration(particleSpeedScale(totalImm))
-                            .ease(d3.easeLinear)
-                            .attr("stroke-dashoffset", 0)
-                            .end().then(() => {
-                                if (countryFlowG.attr("opacity") == 0) {
-                                    return;
-                                }
-                                animatePath(pathId, totalImm);
-                            });
-                    }
-
-                    animatePath(gradientId, totalVal);
-
-                });
-        });
-    
-    firstYear = selectedCountryData ? d3.min(Array.from(selectedCountryData.keys())) : undefined;
-
-    
-
-    dataCtx.immDstCountries.forEach(country => {
-        const countryGroup = flowG.select(`g#${getCountryGroupId(country)}`);
+    let countryFlowG = flowG.select(`g#${getCountryGroupId(selectedCountry)}`);
+    if (countryFlowG.empty()) {
+        countryFlowG = flowG.append("g")
+                            .attr("id", getCountryGroupId(selectedCountry));
         
-        if (!countryGroup.empty() && country != selectedCountry) {
-            countryGroup
-                .transition()
-                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-                .attr("opacity", 0)
-                .end()
-                .then(() => {
-                    countryGroup.remove();
-                });
-        }
-    });
+        countryFlowG.append("g").attr("id", "immigration");
+        countryFlowG.append("g").attr("id", "emigration");
+    }
+    
+    const selectedCountryCoords = dataCtx.countryInfo.get(selectedCountry);
 
-    countryFlowG.transition()
-                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-                .attr("opacity", 1);
+    mapCtx.particleSpeedScale = d3.scaleLog().domain(dataCtx.migrValueExt).range([1000, 100]);
 
-    countryFlowG.select(getImmFlowYearGroupId(firstYear))
-                .transition()
-                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-                .attr("opacity", 1);
+    if (selectedImmCountryData) {
+        countryFlowG.select("g#immigration").selectAll("g")
+            .data(selectedImmCountryData)
+            .enter()
+            .append("g")
+            .attr("id", (d) => `year-${d[0]}`)
+            .attr("opacity", 0)
+            .attr("class", "year")
+            .each(function(d) {
+
+                const defs = d3.select(this).append("defs");
+
+                d3.select(this).selectAll("path")
+                    .data(d[1])
+                    .enter()
+                    .append("path")
+                    .each(function(p) {
+                        const pathId = getFlowPathId("immigration", p[0], selectedCountry, d[0]);
+                        drawFlowPath(this, p[0], p[1], selectedCountryCoords, pathId, defs, false);
+                    });
+            });
+    }
+
+    if (selectedEmiCountryData) {
+        countryFlowG.select("g#emigration").selectAll("g")
+            .data(selectedEmiCountryData)
+            .enter()
+            .append("g")
+            .attr("id", (d) => `year-${d[0]}`)
+            .attr("opacity", 0)
+            .attr("class", "year")
+            .each(function(d) {
+
+                const defs = d3.select(this).append("defs");
+
+                d3.select(this).selectAll("path")
+                    .data(d[1])
+                    .enter()
+                    .append("path")
+                    .each(function(p) {
+                        const pathId = getFlowPathId("emigration", selectedCountry, p[0], d[0]);
+                        drawFlowPath(this, p[0], p[1], selectedCountryCoords, pathId, defs, true);
+                    });
+            });
+    }
 };
 
 
@@ -198,10 +214,11 @@ function quadraticBezierPath(x1, y1, x2, y2){
 };
 
 
-function focusViewOnImmFlow(selectedCountry, selectedYear){
+function focusViewOnFlow(selectedCountry, selectedYear){
 
-    const flowG = d3.select("g#immFlowG")
+    const flowG = d3.select("g#migrFlowG")
                     .select(`g#${getCountryGroupId(selectedCountry)}`)
+                    .select(`g#${getCurrentMode()}`)
                     .select(getImmFlowYearGroupId(selectedYear));
     
     if (flowG.empty()) {
@@ -243,115 +260,30 @@ function focusViewOnImmFlow(selectedCountry, selectedYear){
 }
 
 
-function drawImmFlow(selectedCountry) {
+function updateFlow(selectedCountry, selectedYear){
 
-    if (!dataCtx.immDstCountries.includes(selectedCountry)) {
-        return;
+    let migrCountries, migrDataGrouped;
+    if (getCurrentMode() === "immigration") {
+        migrCountries = dataCtx.immDstCountries;
+        migrDataGrouped = dataCtx.immDataGrouped;
+    }else if (getCurrentMode() === "emigration") {
+        migrCountries = dataCtx.emiSrcCountries;
+        migrDataGrouped = dataCtx.emiDataGrouped;
     }
 
     d3.select("#mapG")
         .selectAll("path.countryPath")
-        .filter(d => dataCtx.immDstCountries.includes(d.properties.GEOUNIT))
-        .transition()
-        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
-
-    d3.select("#mapG")
-        .selectAll("path.centroidPath")
-        .transition()
-        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .attr("opacity", 0);
-    
-    if (selectedCountry != prevCountry) {
-
-        updatePopupContent(selectedCountry);
-
-        d3.select("#mapG")
-            .selectAll("path.countryPath")
-            .filter(d => d.properties.GEOUNIT ===selectedCountry)
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
-
-        const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
-        selectedYear = yearMap ? d3.min(Array.from(yearMap.keys())) : undefined
-        let selectedYearData = yearMap.get(selectedYear);
-
-        d3.select("#mapG")
-            .selectAll("path.centroidPath")
-            .filter(d => d.properties.GEOUNIT !== selectedCountry && 
-                        selectedYearData.has(d.properties.GEOUNIT))
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("fill", mapCtx.NON_SELECTED_CENTROID_COLOR)
-            .attr("opacity", 1);
-
-        d3.select("#mapG")
-            .selectAll("path.centroidPath")
-            .filter(d => d.properties.GEOUNIT === selectedCountry)
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
-            .attr("opacity", 1);
-
-        d3.select("g#immFlowG").selectAll("g")
-            .transition()
-            .duration(mapCtx.TRANSITION_SHORT_DURATION)
-            .attr("opacity", 0)
-            .end()
-            .then(() => {
-                drawFlowNetwork(selectedCountry);
-                focusViewOnImmFlow(selectedCountry, selectedYear);
-            });
-
-    } else {
-        d3.select("g#immFlowG").selectAll("g")
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .attr("opacity", 0)
-            .end()
-            .then((d) => {
-                d3.select("g#immFlowG").remove();
-            });
-
-        d3.select("svg")
-            .transition()
-            .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-            .call(mapCtx.zoom.transform, mapCtx.initialTransform);
-    }
-
-    prevCountry = selectedCountry === prevCountry ? null : selectedCountry;
-    
-    
-    if (typeof updateOverlayVisibility === 'function') {
-        updateOverlayVisibility(prevCountry !== null);
-    }
-    
-    if (typeof updateSliderVisibility === 'function') {
-        updateSliderVisibility(prevCountry !== null, selectedCountry);
-    }
-    
-    if (typeof updateRadioVisibility === 'function') {
-        updateRadioVisibility(prevCountry !== null);
-    }
-};
-
-
-function updateImmFlow(selectedCountry, selectedYear){
-
-    d3.select("#mapG")
-        .selectAll("path.countryPath")
-        .filter(d => dataCtx.immDstCountries.includes(d.properties.GEOUNIT))
+        .filter(d => migrCountries.includes(d.properties.GEOUNIT))
         .transition()
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
-        .attr("fill", mapCtx.SELECTABLE_IMM_COUNTRY_COLOR);
+        .attr("fill", mapCtx.SELECTABLE_COUNTRY_COLOR);
 
     d3.select("#mapG")
         .selectAll("path.countryPath")
         .filter(d => d.properties.GEOUNIT ===selectedCountry)
         .transition()
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
-        .attr("fill", mapCtx.SELECTED_IMM_COUNTRY_COLOR);
+        .attr("fill", mapCtx.SELECTED_COUNTRY_COLOR);
 
     d3.select("#mapG")
         .selectAll("path.centroidPath")
@@ -359,8 +291,9 @@ function updateImmFlow(selectedCountry, selectedYear){
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
         .attr("opacity", 0);
 
-    const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
-    let selectedYearData = yearMap.get(selectedYear);
+    const yearMap = migrDataGrouped.get(selectedCountry);
+    currSelectedYear = selectedYear;
+    let selectedYearData = yearMap.get(currSelectedYear);
 
     d3.select("#mapG")
         .selectAll("path.centroidPath")
@@ -379,23 +312,29 @@ function updateImmFlow(selectedCountry, selectedYear){
         .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
         .attr("opacity", 1);
 
-    d3.select("g#immFlowG")
+    d3.select("g#migrFlowG")
         .select(`g#${getCountryGroupId(selectedCountry)}`)
-        .selectAll("g")
+        .selectAll("g.year")
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
 
-    d3.select("g#immFlowG")
+    d3.select("g#migrFlowG")
         .select(`g#${getCountryGroupId(selectedCountry)}`)
-        .select(getImmFlowYearGroupId(selectedYear))
+        .select(`g#${getCurrentMode()}`)
+        .select(getImmFlowYearGroupId(currSelectedYear))
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
-        .attr("opacity", 1);
+        .attr("opacity", 1)
+        .selectAll("path")
+        .each(function(d) {
+            const pathId = d3.select(this).attr("id");
+            animatePath(pathId);
+        });
     
-    focusViewOnImmFlow(selectedCountry, selectedYear);
+    focusViewOnFlow(selectedCountry, currSelectedYear);
 };
 
 function getCountryGroupId(country){
@@ -406,8 +345,190 @@ function getImmFlowYearGroupId(year){
     return `g#year-${year}`;
 }
 
+function getFlowPathId(type, src, dst, year){
+    return `${type}-${src}-${dst}-${year}`.replace(/\s+/g, '-');
+}
 
-function drawImmMap(){
+
+function switchFlow() {
+
+    if (!currSelectedCountry ||
+        (getCurrentMode() === "immigration" && !dataCtx.immDstCountries.includes(currSelectedCountry)) ||
+        (getCurrentMode() === "emigration" && !dataCtx.emiSrcCountries.includes(currSelectedCountry))) {
+        
+        diselectFlow();
+        return;
+    }
+
+    let migrCountries, migrDataGrouped;
+    if (getCurrentMode() === "immigration") {
+        migrCountries = dataCtx.immDstCountries;
+        migrDataGrouped = dataCtx.immDataGrouped;
+    }else if (getCurrentMode() === "emigration") {
+        migrCountries = dataCtx.emiSrcCountries;
+        migrDataGrouped = dataCtx.emiDataGrouped;
+    }
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.NON_SELECTABLE_COUNTRY_COLOR);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 0);
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => migrCountries.includes(d.properties.GEOUNIT))
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.SELECTABLE_COUNTRY_COLOR);
+
+    updatePopupContent(currSelectedCountry);
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => d.properties.GEOUNIT === currSelectedCountry)
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.SELECTED_COUNTRY_COLOR);
+
+    const avalYears = Array.from(migrDataGrouped.get(currSelectedCountry).keys());
+    if (!avalYears.includes(currSelectedYear)) {
+        currSelectedYear = d3.min(avalYears);
+    }
+    let selectedYearData = migrDataGrouped.get(currSelectedCountry).get(currSelectedYear);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .filter(d => d.properties.GEOUNIT !== currSelectedCountry && 
+                    selectedYearData.has(d.properties.GEOUNIT))
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.NON_SELECTED_CENTROID_COLOR)
+        .attr("opacity", 1);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .filter(d => d.properties.GEOUNIT === currSelectedCountry)
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
+        .attr("opacity", 1);
+
+    d3.select("g#migrFlowG").selectAll("g.year")
+        .transition()
+        .duration(mapCtx.TRANSITION_SHORT_DURATION)
+        .attr("opacity", 0)
+        .end()
+        .then(() => {
+            drawFlowNetwork(currSelectedCountry);
+
+            migrCountries.forEach(country => {
+                const countryGroup = d3.select("g#migrFlowG")
+                                        .select(`g#${getCountryGroupId(country)}`);
+                
+                if (!countryGroup.empty() && country != currSelectedCountry) {
+
+                    countryGroup.select(`g#${getCurrentMode()}`).selectAll("g")
+                        .transition()
+                        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+                        .attr("opacity", 0);
+                }
+            });
+
+            d3.select("g#migrFlowG")
+                .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+                .select(`g#${getCurrentMode()}`)
+                .select(getImmFlowYearGroupId(currSelectedYear))
+                .transition()
+                .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+                .attr("opacity", 1)
+                .selectAll("path")
+                .each(function(d) {
+                    const pathId = d3.select(this).attr("id");
+                    animatePath(pathId);
+                });
+            
+            focusViewOnFlow(currSelectedCountry, currSelectedYear);
+        });
+
+    updateVisibilities();
+}
+
+
+function diselectFlow(){
+
+    let migrCountries;
+    if (getCurrentMode() === "immigration") {
+        migrCountries = dataCtx.immDstCountries;
+    }else if (getCurrentMode() === "emigration") {
+        migrCountries = dataCtx.emiSrcCountries;
+    }
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.NON_SELECTABLE_COUNTRY_COLOR);
+
+    d3.select("g#migrFlowG").selectAll("g.year")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 0);
+
+    d3.select("#mapG")
+        .selectAll("path.countryPath")
+        .filter(d => migrCountries.includes(d.properties.GEOUNIT))
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("fill", mapCtx.SELECTABLE_COUNTRY_COLOR);
+
+    d3.select("#mapG")
+        .selectAll("path.centroidPath")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .attr("opacity", 0);
+
+    d3.select("svg")
+        .transition()
+        .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
+        .call(mapCtx.zoom.transform, mapCtx.initialTransform);
+
+    currSelectedCountry = null;
+    updateVisibilities();
+};
+
+
+function drawFlow(selectedCountry){
+
+    if ((getCurrentMode() === "immigration" && !dataCtx.immDstCountries.includes(selectedCountry)) ||
+        (getCurrentMode() === "emigration" && !dataCtx.emiSrcCountries.includes(selectedCountry))) {
+        return;
+    }
+    
+    // country is diselected
+    if (selectedCountry === currSelectedCountry) {
+        diselectFlow();
+    } else {
+        currSelectedCountry = selectedCountry;
+        switchFlow();
+    }
+};
+
+
+function updateVisibilities(){
+    updateOverlayVisibility(currSelectedCountry !== null);
+    updateSliderVisibility(currSelectedCountry !== null, currSelectedCountry, currSelectedYear);
+    updateRadioVisibility(currSelectedCountry);
+};
+
+
+function drawMap(){
 
     mapCtx.geoPathGen = d3.geoPath().projection(mapCtx.projection);
     
@@ -423,8 +544,8 @@ function drawImmMap(){
                 .attr("class", "countryPath")
                 .attr("d", mapCtx.geoPathGen)
                 .attr("fill", (d) => dataCtx.immDstCountries.includes(d.properties.GEOUNIT)
-                            ? mapCtx.SELECTABLE_IMM_COUNTRY_COLOR
-                            : mapCtx.NON_SELECTABLE_IMM_COUNTRY_COLOR);
+                            ? mapCtx.SELECTABLE_COUNTRY_COLOR
+                            : mapCtx.NON_SELECTABLE_COUNTRY_COLOR);
 
     featureG.append("path")
                 .attr("class", "centroidPath")
@@ -463,7 +584,7 @@ function drawImmMap(){
                                     .attr("stroke-width", 0.5 / currentZoomK);
                         })
                         .on("click", function (event, d) {
-                            drawImmFlow(d.properties.GEOUNIT);
+                            drawFlow(d.properties.GEOUNIT);
                         });
 
     const b = d3.select("#mapG").node().getBBox();
@@ -491,7 +612,7 @@ function drawImmMap(){
     mapCtx.initialTransform = d3.zoomIdentity
         .translate(mapCtx.MAP_WIDTH / 2, mapCtx.MAP_HEIGHT / 2)
         .scale(5)
-        .translate(-mapCtx.projection(mapCtx.europeCenter)[0], -mapCtx.projection(mapCtx.europeCenter)[1]);
+        .translate(-mapCtx.projection(mapCtx.EUROPE_CENTER)[0], -mapCtx.projection(mapCtx.EUROPE_CENTER)[1]);
 
     d3.select("svg")
         .call(mapCtx.zoom)
@@ -521,7 +642,7 @@ function createMap(){
     svgEl.append("g").attr("id", "mapG");
 
     loadData().then(() => {
-        drawImmMap();
+        drawMap();
     });
 
 };

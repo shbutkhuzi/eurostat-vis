@@ -22,9 +22,39 @@ function initRadio() {
     // showRadio();
 }
 
-// Show radio button
-function showRadio() {
+// Show radio button with selective enabling/disabling
+function showRadio(immigrationEnable = true, emigrationEnable = true) {
     const radioContainer = document.getElementById('radio-container');
+    const immigrationInput = document.getElementById('immigration-radio');
+    const emigrationInput = document.getElementById('emigration-radio');
+    const immigrationLabel = document.querySelector('label[for="immigration-radio"]');
+    const emigrationLabel = document.querySelector('label[for="emigration-radio"]');
+    
+    // Enable/disable immigration radio
+    immigrationInput.disabled = !immigrationEnable;
+    if (immigrationEnable) {
+        immigrationLabel.classList.remove('disabled');
+    } else {
+        immigrationLabel.classList.add('disabled');
+    }
+    
+    // Enable/disable emigration radio
+    emigrationInput.disabled = !emigrationEnable;
+    if (emigrationEnable) {
+        emigrationLabel.classList.remove('disabled');
+    } else {
+        emigrationLabel.classList.add('disabled');
+    }
+    
+    // If current selection is disabled, switch to enabled one
+    if (!immigrationEnable && radioState.currentMode === 'immigration' && emigrationEnable) {
+        emigrationInput.checked = true;
+        radioState.currentMode = 'emigration';
+    } else if (!emigrationEnable && radioState.currentMode === 'emigration' && immigrationEnable) {
+        immigrationInput.checked = true;
+        radioState.currentMode = 'immigration';
+    }
+    
     radioContainer.classList.add('visible');
 }
 
@@ -41,14 +71,15 @@ function getCurrentMode() {
 
 // Callback when radio selection changes
 function onRadioModeChange(mode) {
-    // console.log('Radio mode changed to:', mode);
-    
+    switchFlow();
 }
 
 // Update radio visibility based on country selection
-function updateRadioVisibility(countrySelected) {
-    if (countrySelected) {
-        showRadio();
+function updateRadioVisibility(selectedCountry) {
+    if (selectedCountry) {
+        const immigrationEnable = dataCtx.immDstCountries.includes(selectedCountry);
+        const emigrationEnable = dataCtx.emiSrcCountries.includes(selectedCountry);
+        showRadio(immigrationEnable, emigrationEnable);
     } else {
         hideRadio();
     }

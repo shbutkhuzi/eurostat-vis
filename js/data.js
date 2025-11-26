@@ -303,9 +303,14 @@ function loadData(){
                 dataCtx.emiDstCountries = [...new Set(emiData.map(d => d.dstCountry))];
                 dataCtx.emiSrcCountries = [...new Set(emiData.map(d => d.srcCountry))];
 
+                dataCtx.allMigrCountries = new Set([...dataCtx.immDstCountries, ...dataCtx.emiSrcCountries]);
+
                 mapCtx.projection = d3.geoMercator().fitSize([mapCtx.MAP_WIDTH, mapCtx.MAP_HEIGHT], dataCtx.geoJson);
-                mapCtx.immValueExt = d3.extent(dataCtx.immData.filter(d => d.sex === "T"), (d) => d.value);
-                mapCtx.emiValueExt = d3.extent(dataCtx.emiData.filter(d => d.sex === "T"), (d) => d.value);
+
+
+                dataCtx.immValueExt = d3.extent(dataCtx.immData.filter(d => d.sex === "T"), (d) => d.value);
+                dataCtx.emiValueExt = d3.extent(dataCtx.emiData.filter(d => d.sex === "T"), (d) => d.value);
+                dataCtx.migrValueExt = d3.extent([...dataCtx.immValueExt, ...dataCtx.emiValueExt]);
 
                 geoJson.features.forEach(feature => {
                     const [px, py] = mapCtx.projection([feature.properties.LABEL_X, feature.properties.LABEL_Y]);
