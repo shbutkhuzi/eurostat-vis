@@ -11,7 +11,8 @@ const mapCtx = {
     NON_SELECTED_CENTROID_COLOR: "#413cd6ff",
     CENTROID_GLYPH_SIZE: 1,
     TRANSITION_DEFAULT_DURATION: 750,
-    TRANSITION_SHORT_DURATION: 250
+    TRANSITION_SHORT_DURATION: 250,
+    HIGHLIGHT_OPACITY: 0.25
 };
 
 let currentZoomK = 1;
@@ -88,6 +89,10 @@ function drawFlowPath(element, partnerCountry, partnerCountryData, selectedCount
 
     d3.select(element)
         .attr("id", pathId)
+        .attr("class", "flowPathGroup")
+        .attr("opacity", 0)
+        .append("path")
+        .attr("id", pathId)
         .attr("d", () => {
 
             const x1 = partnerCountryCoords.px;
@@ -109,7 +114,7 @@ function drawFlowPath(element, partnerCountry, partnerCountryData, selectedCount
         .attr("stroke-linecap", "round")
         .attr("stroke-dasharray", `${dashLength},${gapLength}`)
         .attr("migr-val", totalVal);
-}
+};
 
 function animatePath(pathId) {
     const pathElement = d3.select(`path#${pathId}`);
@@ -122,15 +127,161 @@ function animatePath(pathId) {
         .ease(d3.easeLinear)
         .attr("stroke-dashoffset", 0)
         .end().then(() => {
-            const parentGroup = d3.select(pathElement.node().parentNode);
+            countryGroup = d3.select(
+                                d3.select(
+                                    d3.select(
+                                        d3.select(pathElement.node().parentNode)
+                                            .node().parentNode
+                                    ).node().parentNode
+                                ).node().parentNode
+                            );
+
+            const allPathsHidden = countryGroup.selectAll("g.flowPathGroup")
+                .nodes()
+                .every(node => d3.select(node).attr("opacity") == 0);
             
-            if (parentGroup.attr("opacity") == 0) {
+            if (allPathsHidden) {
+                countryGroup.remove();
                 return;
             }
             
             animatePath(pathId);
+        })
+        .catch(error => {
+            // Ignore
         });
-}
+};
+
+
+function highlightFlow(country){
+
+    if (!currSelectedCountry || currSelectedCountry === country) {
+        return;
+    }
+
+    const immData = dataCtx.immDataGrouped.get(currSelectedCountry);
+    const emiData = dataCtx.emiDataGrouped.get(currSelectedCountry);
+    
+    const hasImmConnection = immData && immData.get(currSelectedYear) && immData.get(currSelectedYear).has(country);
+    const hasEmiConnection = emiData && emiData.get(currSelectedYear) && emiData.get(currSelectedYear).has(country);
+    
+    if (!hasImmConnection || !hasEmiConnection) {
+        return;
+    }
+
+    if (getCurrentMode() === "immigration") {
+
+        const immGroup = d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#immigration")
+            .select(getImmFlowYearGroupId(currSelectedYear));
+        
+        immGroup.selectAll("g.flowPathGroup")
+            .attr("opacity", mapCtx.HIGHLIGHT_OPACITY);
+        
+        const immPath = immGroup.select(`g#${getFlowPathId('immigration', country, currSelectedCountry, currSelectedYear)}`);
+        immPath.attr("opacity", 1);
+        immPath.raise();
+
+        const emiGroup = d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#emigration")
+            .select(getImmFlowYearGroupId(currSelectedYear));
+
+        emiGroup.selectAll("g.flowPathGroup")
+            .attr("opacity", 0);
+
+        const emiPathId = getFlowPathId('emigration', currSelectedCountry, country, currSelectedYear);
+
+        const emiPath = emiGroup.select(`g#${emiPathId}`);
+        emiPath.attr("opacity", 1);
+        emiPath.raise();
+
+        animatePath(emiPathId);
+
+    } else if (getCurrentMode() === "emigration") {
+
+        const emiGroup = d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#emigration")
+            .select(getImmFlowYearGroupId(currSelectedYear));
+        
+        emiGroup.selectAll("g.flowPathGroup")
+            .attr("opacity", mapCtx.HIGHLIGHT_OPACITY);
+        
+        emiGroup.select(`g#${getFlowPathId('emigration', currSelectedCountry, country, currSelectedYear)}`)
+            .attr("opacity", 1);
+
+
+        const immGroup = d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#immigration")
+            .select(getImmFlowYearGroupId(currSelectedYear));
+
+        immGroup.selectAll("g.flowPathGroup")
+            .attr("opacity", 0);
+
+        const immPathId = getFlowPathId('immigration', country, currSelectedCountry, currSelectedYear);
+
+        immGroup.select(`g#${immPathId}`)
+            .attr("opacity", 1);
+
+        animatePath(immPathId);
+
+    }
+
+};
+
+
+function unHighlightFlow(country){
+
+    if (!currSelectedCountry || currSelectedCountry === country) {
+        return;
+    }
+
+    const immData = dataCtx.immDataGrouped.get(currSelectedCountry);
+    const emiData = dataCtx.emiDataGrouped.get(currSelectedCountry);
+    
+    const hasImmConnection = immData && immData.get(currSelectedYear) && immData.get(currSelectedYear).has(country);
+    const hasEmiConnection = emiData && emiData.get(currSelectedYear) && emiData.get(currSelectedYear).has(country);
+    
+    if (!hasImmConnection || !hasEmiConnection) {
+        return;
+    }
+
+    if (getCurrentMode() === "immigration") {
+
+        d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#immigration")
+            .select(getImmFlowYearGroupId(currSelectedYear))
+            .selectAll("g.flowPathGroup")
+            .attr("opacity", 1);
+
+        d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#emigration")
+            .selectAll("g.flowPathGroup")
+            .attr("opacity", 0);
+
+    } else if (getCurrentMode() === "emigration") {
+
+        d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#emigration")
+            .select(getImmFlowYearGroupId(currSelectedYear))
+            .selectAll("g.flowPathGroup")
+            .attr("opacity", 1);
+
+        d3.select("g#migrFlowG")
+            .select(`g#${getCountryGroupId(currSelectedCountry)}`)
+            .select("g#immigration")
+            .selectAll("g.flowPathGroup")
+            .attr("opacity", 0);
+
+    }
+    
+};
 
 
 function drawFlowNetwork(selectedCountry){
@@ -161,16 +312,14 @@ function drawFlowNetwork(selectedCountry){
             .enter()
             .append("g")
             .attr("id", (d) => `year-${d[0]}`)
-            .attr("opacity", 0)
-            .attr("class", "year")
             .each(function(d) {
 
                 const defs = d3.select(this).append("defs");
 
-                d3.select(this).selectAll("path")
+                d3.select(this).selectAll("g")
                     .data(d[1])
                     .enter()
-                    .append("path")
+                    .append("g")
                     .each(function(p) {
                         const pathId = getFlowPathId("immigration", p[0], selectedCountry, d[0]);
                         drawFlowPath(this, p[0], p[1], selectedCountryCoords, pathId, defs, false);
@@ -184,16 +333,14 @@ function drawFlowNetwork(selectedCountry){
             .enter()
             .append("g")
             .attr("id", (d) => `year-${d[0]}`)
-            .attr("opacity", 0)
-            .attr("class", "year")
             .each(function(d) {
 
                 const defs = d3.select(this).append("defs");
 
-                d3.select(this).selectAll("path")
+                d3.select(this).selectAll("g")
                     .data(d[1])
                     .enter()
-                    .append("path")
+                    .append("g")
                     .each(function(p) {
                         const pathId = getFlowPathId("emigration", selectedCountry, p[0], d[0]);
                         drawFlowPath(this, p[0], p[1], selectedCountryCoords, pathId, defs, true);
@@ -257,7 +404,7 @@ function focusViewOnFlow(selectedCountry, selectedYear){
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .call(mapCtx.zoom.transform, focusTransform);
-}
+};
 
 
 function updateFlow(selectedCountry, selectedYear){
@@ -314,7 +461,7 @@ function updateFlow(selectedCountry, selectedYear){
 
     d3.select("g#migrFlowG")
         .select(`g#${getCountryGroupId(selectedCountry)}`)
-        .selectAll("g.year")
+        .selectAll("g.flowPathGroup")
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
@@ -324,12 +471,13 @@ function updateFlow(selectedCountry, selectedYear){
         .select(`g#${getCountryGroupId(selectedCountry)}`)
         .select(`g#${getCurrentMode()}`)
         .select(getImmFlowYearGroupId(currSelectedYear))
+        .selectAll("g.flowPathGroup")
         .transition()
         .ease(d3.easeSinInOut)
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 1)
         .selectAll("path")
-        .each(function(d) {
+        .on("start", function(d,i){
             const pathId = d3.select(this).attr("id");
             animatePath(pathId);
         });
@@ -339,15 +487,15 @@ function updateFlow(selectedCountry, selectedYear){
 
 function getCountryGroupId(country){
     return `${country}`.replace(/\s+/g, '-');
-}
+};
 
 function getImmFlowYearGroupId(year){
     return `g#year-${year}`;
-}
+};
 
 function getFlowPathId(type, src, dst, year){
     return `${type}-${src}-${dst}-${year}`.replace(/\s+/g, '-');
-}
+};
 
 
 function switchFlow() {
@@ -420,7 +568,7 @@ function switchFlow() {
         .attr("fill", mapCtx.SELECTED_CENTROID_COLOR)
         .attr("opacity", 1);
 
-    d3.select("g#migrFlowG").selectAll("g.year")
+    d3.select("g#migrFlowG").selectAll("g.flowPathGroup")
         .transition()
         .duration(mapCtx.TRANSITION_SHORT_DURATION)
         .attr("opacity", 0)
@@ -434,7 +582,7 @@ function switchFlow() {
                 
                 if (!countryGroup.empty() && country != currSelectedCountry) {
 
-                    countryGroup.select(`g#${getCurrentMode()}`).selectAll("g")
+                    countryGroup.select(`g#${getCurrentMode()}`).selectAll("g.flowPathGroup")
                         .transition()
                         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
                         .attr("opacity", 0);
@@ -445,11 +593,12 @@ function switchFlow() {
                 .select(`g#${getCountryGroupId(currSelectedCountry)}`)
                 .select(`g#${getCurrentMode()}`)
                 .select(getImmFlowYearGroupId(currSelectedYear))
+                .selectAll("g.flowPathGroup")
                 .transition()
                 .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
                 .attr("opacity", 1)
                 .selectAll("path")
-                .each(function(d) {
+                .on("start", function(d,i){
                     const pathId = d3.select(this).attr("id");
                     animatePath(pathId);
                 });
@@ -458,7 +607,7 @@ function switchFlow() {
         });
 
     updateVisibilities();
-}
+};
 
 
 function diselectFlow(){
@@ -476,7 +625,7 @@ function diselectFlow(){
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("fill", mapCtx.NON_SELECTABLE_COUNTRY_COLOR);
 
-    d3.select("g#migrFlowG").selectAll("g.year")
+    d3.select("g#migrFlowG").selectAll("g.flowPathGroup")
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("opacity", 0);
@@ -574,18 +723,22 @@ function drawMap(){
     bordersG.append("title").text((d) => d.properties.GEOUNIT);
 
     bordersG.on("mouseenter", function (event, d) {
-                                d3.select(this)
-                                    .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
-                                    .attr("stroke-width", 1.5 / currentZoomK);
-                        })
-                        .on("mouseleave", function (event, d) {
-                                d3.select(this)
-                                    .attr("stroke", mapCtx.BORDER_COLOR)
-                                    .attr("stroke-width", 0.5 / currentZoomK);
-                        })
-                        .on("click", function (event, d) {
-                            drawFlow(d.properties.GEOUNIT);
-                        });
+                d3.select(this)
+                    .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
+                    .attr("stroke-width", 1.5 / currentZoomK);
+
+                highlightFlow(d.properties.GEOUNIT);
+            })
+            .on("mouseleave", function (event, d) {
+                d3.select(this)
+                    .attr("stroke", mapCtx.BORDER_COLOR)
+                    .attr("stroke-width", 0.5 / currentZoomK);
+
+                unHighlightFlow(d.properties.GEOUNIT);
+            })
+            .on("click", function (event, d) {
+                drawFlow(d.properties.GEOUNIT);
+            });
 
     const b = d3.select("#mapG").node().getBBox();
     const kMin = Math.max(mapCtx.MAP_HEIGHT / b.height, mapCtx.MAP_WIDTH / b.width);

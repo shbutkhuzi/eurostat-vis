@@ -6,7 +6,7 @@ const dataCtx = {
 }
 
 
-function checkImmDataIntegrity(){
+function checkDataIntegrity(){
 
     let missingCountries = [];
     let invalidCoordinates = [];
@@ -337,7 +337,7 @@ function loadData(){
                     d => d.srcCountry, d => d.year, d => d.dstCountry, d => d.age
                 );
 
-                // checkImmDataIntegrity();
+                // checkDataIntegrity();
 
                 // console.log("immData:", dataCtx.immData);
                 // console.log("immDstCountries:", dataCtx.immDstCountries);
