@@ -12,7 +12,9 @@ const mapCtx = {
     CENTROID_GLYPH_SIZE: 1,
     TRANSITION_DEFAULT_DURATION: 750,
     TRANSITION_SHORT_DURATION: 250,
-    HIGHLIGHT_OPACITY: 0.25
+    HIGHLIGHT_OPACITY: 0.25,
+    HOVER_DELAY_MS: 500,
+    MOVE_EPSILON_PX: 2
 };
 
 let currentZoomK = 1;
@@ -127,21 +129,24 @@ function animatePath(pathId) {
         .ease(d3.easeLinear)
         .attr("stroke-dashoffset", 0)
         .end().then(() => {
-            countryGroup = d3.select(
-                                d3.select(
-                                    d3.select(
-                                        d3.select(pathElement.node().parentNode)
-                                            .node().parentNode
-                                    ).node().parentNode
-                                ).node().parentNode
-                            );
 
-            const allPathsHidden = countryGroup.selectAll("g.flowPathGroup")
-                .nodes()
-                .every(node => d3.select(node).attr("opacity") == 0);
-            
-            if (allPathsHidden) {
-                countryGroup.remove();
+            if (d3.select(pathElement.node().parentNode).attr("opacity") == 0) {
+
+                countryGroup = d3.select(
+                                    d3.select(
+                                        d3.select(
+                                            d3.select(pathElement.node().parentNode)
+                                                .node().parentNode
+                                        ).node().parentNode
+                                    ).node().parentNode
+                                );
+
+                const allPathsHidden = countryGroup.selectAll("g.flowPathGroup")
+                    .nodes()
+                    .every(node => d3.select(node).attr("opacity") == 0);
+
+                if (allPathsHidden) countryGroup.remove();
+
                 return;
             }
             
@@ -177,10 +182,15 @@ function highlightFlow(country){
             .select(getImmFlowYearGroupId(currSelectedYear));
         
         immGroup.selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", mapCtx.HIGHLIGHT_OPACITY);
         
         const immPath = immGroup.select(`g#${getFlowPathId('immigration', country, currSelectedCountry, currSelectedYear)}`);
-        immPath.attr("opacity", 1);
+        immPath
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
+            .attr("opacity", 1);
         immPath.raise();
 
         const emiGroup = d3.select("g#migrFlowG")
@@ -189,12 +199,16 @@ function highlightFlow(country){
             .select(getImmFlowYearGroupId(currSelectedYear));
 
         emiGroup.selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0);
 
         const emiPathId = getFlowPathId('emigration', currSelectedCountry, country, currSelectedYear);
 
         const emiPath = emiGroup.select(`g#${emiPathId}`);
-        emiPath.attr("opacity", 1);
+        emiPath.attr("opacity", 1)
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION);
         emiPath.raise();
 
         animatePath(emiPathId);
@@ -207,9 +221,13 @@ function highlightFlow(country){
             .select(getImmFlowYearGroupId(currSelectedYear));
         
         emiGroup.selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", mapCtx.HIGHLIGHT_OPACITY);
         
         emiGroup.select(`g#${getFlowPathId('emigration', currSelectedCountry, country, currSelectedYear)}`)
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 1);
 
 
@@ -219,11 +237,15 @@ function highlightFlow(country){
             .select(getImmFlowYearGroupId(currSelectedYear));
 
         immGroup.selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0);
 
         const immPathId = getFlowPathId('immigration', country, currSelectedCountry, currSelectedYear);
 
         immGroup.select(`g#${immPathId}`)
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 1);
 
         animatePath(immPathId);
@@ -256,12 +278,16 @@ function unHighlightFlow(country){
             .select("g#immigration")
             .select(getImmFlowYearGroupId(currSelectedYear))
             .selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 1);
 
         d3.select("g#migrFlowG")
             .select(`g#${getCountryGroupId(currSelectedCountry)}`)
             .select("g#emigration")
             .selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0);
 
     } else if (getCurrentMode() === "emigration") {
@@ -271,12 +297,16 @@ function unHighlightFlow(country){
             .select("g#emigration")
             .select(getImmFlowYearGroupId(currSelectedYear))
             .selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 1);
 
         d3.select("g#migrFlowG")
             .select(`g#${getCountryGroupId(currSelectedCountry)}`)
             .select("g#immigration")
             .selectAll("g.flowPathGroup")
+            .transition()
+            .duration(mapCtx.TRANSITION_SHORT_DURATION)
             .attr("opacity", 0);
 
     }
@@ -722,19 +752,74 @@ function drawMap(){
 
     bordersG.append("title").text((d) => d.properties.GEOUNIT);
 
+    const hoverState = d3.local();
+
     bordersG.on("mouseenter", function (event, d) {
+
                 d3.select(this)
                     .attr("stroke", mapCtx.BORDER_COLOR_HIGHLIGHTED)
                     .attr("stroke-width", 1.5 / currentZoomK);
 
-                highlightFlow(d.properties.GEOUNIT);
+                const state = hoverState.get(this) || {};
+                if (state.intentTimer) clearTimeout(state.intentTimer);
+
+                state.highlighted = false;
+                state.lastPos = [event.clientX, event.clientY];
+
+                state.intentTimer = setTimeout(() => {
+                    highlightFlow(d.properties.GEOUNIT);
+                    state.highlighted = true;
+                }, mapCtx.HOVER_DELAY_MS);
+
+                hoverState.set(this, state);
+            })
+            .on("mousemove", function (event, d) {
+                const state = hoverState.get(this);
+                if (!state) return;
+
+                const pos = [event.clientX, event.clientY];
+                const moved =
+                Math.hypot(pos[0] - state.lastPos[0], pos[1] - state.lastPos[1]) > mapCtx.MOVE_EPSILON_PX;
+
+                state.lastPos = pos;
+
+                if (!state.highlighted) {
+                    if (moved) {
+                        if (state.intentTimer) clearTimeout(state.intentTimer);
+                        state.intentTimer = setTimeout(() => {
+                            highlightFlow(d.properties.GEOUNIT);
+                            state.highlighted = true;
+                        }, mapCtx.HOVER_DELAY_MS);
+                    }
+                } else {
+                    if (moved) {
+                        unHighlightFlow(d.properties.GEOUNIT);
+                        state.highlighted = false;
+
+                        if (state.intentTimer) clearTimeout(state.intentTimer);
+                        state.intentTimer = setTimeout(() => {
+                            highlightFlow(d.properties.GEOUNIT);
+                            state.highlighted = true;
+                        }, mapCtx.HOVER_DELAY_MS);
+                    }
+                }
+
+                hoverState.set(this, state);
             })
             .on("mouseleave", function (event, d) {
                 d3.select(this)
-                    .attr("stroke", mapCtx.BORDER_COLOR)
-                    .attr("stroke-width", 0.5 / currentZoomK);
+                .attr("stroke", mapCtx.BORDER_COLOR)
+                .attr("stroke-width", 0.5 / currentZoomK);
 
-                unHighlightFlow(d.properties.GEOUNIT);
+                const state = hoverState.get(this);
+                if (state?.intentTimer) clearTimeout(state.intentTimer);
+
+                if (state?.highlighted) {
+                    unHighlightFlow(d.properties.GEOUNIT);
+                    state.highlighted = false;
+                }
+
+                hoverState.set(this, state);
             })
             .on("click", function (event, d) {
                 drawFlow(d.properties.GEOUNIT);
@@ -789,13 +874,20 @@ function createMap(){
     mapCtx.MAP_WIDTH = mainElement.clientWidth;
     mapCtx.MAP_HEIGHT = mainElement.clientHeight;
     
-    var svgEl = d3.select("#main").append("svg");
-    svgEl.attr("width", mapCtx.MAP_WIDTH);
-    svgEl.attr("height", mapCtx.MAP_HEIGHT);
-    svgEl.append("g").attr("id", "mapG");
-
     loadData().then(() => {
+        mapCtx.MAP_WIDTH = mainElement.clientWidth;
+        mapCtx.MAP_HEIGHT = mainElement.clientHeight;
+        
+        var svgEl = d3.select("#main").append("svg");
+        svgEl.attr("width", mapCtx.MAP_WIDTH);
+        svgEl.attr("height", mapCtx.MAP_HEIGHT);
+        svgEl.append("g").attr("id", "mapG");
+        
         drawMap();
+        hideLoader();
+    }).catch((error) => {
+        console.error('Failed to load data:', error);
+        hideLoader();
     });
 
 };

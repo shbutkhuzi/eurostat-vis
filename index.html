@@ -11,9 +11,11 @@
         <script type="text/javascript" src="js/overlay.js"></script>
         <script type="text/javascript" src="js/slider.js"></script>
         <script type="text/javascript" src="js/radio.js"></script>
+        <script type="text/javascript" src="js/loader.js"></script>
         <link rel="stylesheet" href="css/overlay.css">
         <link rel="stylesheet" href="css/slider.css">
         <link rel="stylesheet" href="css/radio.css">
+        <link rel="stylesheet" href="css/loader.css">
         <style>
 
             html, body {
@@ -21,10 +23,10 @@
                 margin: 0;
                 padding: 0;
                 overflow: hidden;
+                background-color: black;
             }
 
             body {
-                background-color: black;
                 color: #888;
             }
 
@@ -38,6 +40,9 @@
     </head>
 
     <body onload="createMap(); initOverlay(); initSlider(); initRadio();">
+        <div id="loading-screen">
+            <div class="loading-text">Loading</div>
+        </div>
         <div id="main"></div>
         <div id="overlay-container">
             <button id="details-button">
