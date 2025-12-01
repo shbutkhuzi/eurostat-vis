@@ -2,7 +2,8 @@ const dataCtx = {
     GeoUrl: "data/ne_50m_admin_0_countries.geojson",
     BordersUrl: "data/ne_50m_admin_0_countries_borders.geojson",
     immDataUrl: "data/raw/estat_migr_imm5prv.csv",
-    emiDataUrl: "data/raw/estat_migr_emi3nxt.csv"
+    emiDataUrl: "data/raw/estat_migr_emi3nxt.csv",
+    nama_10_gdp_Url: "data/raw/nama_10_gdp.csv"
 }
 
 
@@ -12,6 +13,8 @@ function checkDataIntegrity(){
     let invalidCoordinates = [];
     let incompleteSexDataImm = [];
     let incompleteSexDataEmi = [];
+    let missingGdpCountries = [];
+    let missingWagesCountries = [];
     // let incompleteAgeGrData = [];
 
     dataCtx.immDstCountries.forEach(country => {
@@ -146,6 +149,20 @@ function checkDataIntegrity(){
         });
     });
 
+    // Check GDP data countries
+    dataCtx.gdpDataGrouped.forEach((yearMap, country) => {
+        if (!dataCtx.countryInfo.has(country)) {
+            missingGdpCountries.push(country);
+        }
+    });
+
+    // Check wages and salary data countries
+    dataCtx.wagesAndSalaryDataGrouped.forEach((yearMap, country) => {
+        if (!dataCtx.countryInfo.has(country)) {
+            missingWagesCountries.push(country);
+        }
+    });
+
     // // Check age group data: for each dstCountry, srcCountry, age and year there must be
     // // at least one record with sex === "T" and a valid value attribute, if not add based on other attributes
     // dataCtx.immDataWithAgeGrGrouped.forEach((srcCountryMap, dstCountry) => {
@@ -205,11 +222,19 @@ function checkDataIntegrity(){
         console.warn("Incomplete sex data entries in Emi data:", incompleteSexDataEmi);
     }
 
+    if (missingGdpCountries.length > 0) {
+        console.warn("Countries in GDP data not found in countryInfo:", missingGdpCountries);
+    }
+
+    if (missingWagesCountries.length > 0) {
+        console.warn("Countries in wages/salary data not found in countryInfo:", missingWagesCountries);
+    }
+
     // if (incompleteAgeGrData.length > 0) {
     //     console.warn("Incomplete age group data entries:", incompleteAgeGrData);
     // }
 
-    if (missingCountries.length === 0 && invalidCoordinates.length === 0 && incompleteSexDataImm.length === 0 && incompleteSexDataEmi.length === 0) {
+    if (missingCountries.length === 0 && invalidCoordinates.length === 0 && incompleteSexDataImm.length === 0 && incompleteSexDataEmi.length === 0 && missingGdpCountries.length === 0 && missingWagesCountries.length === 0) {
         console.log("Data integrity check passed!");
     }
 
@@ -280,21 +305,51 @@ function loadData(){
 
         });
 
+        nama_10_gdp_data = d3.csv(dataCtx.nama_10_gdp_Url, function(d) {
+            
+            const value = +d.OBS_VALUE;
+            let country = d["Geopolitical entity (reporting)"];
+
+            if (value === 0) {
+                return null;
+            }
+
+            const countryNameMap = {
+                "Türkiye": "Turkey",
+                "Serbia": "Republic of Serbia",
+                "Kosovo*": "Kosovo"
+            };
+
+            country = countryNameMap[country] || country;
+
+            return {
+                country: country,
+                year: +d.TIME_PERIOD,
+                value: value,
+                na_item: d.na_item
+            };
+
+        });
+
         geoJson = d3.json(dataCtx.GeoUrl);
         bordersJson = d3.json(dataCtx.BordersUrl);
 
         dataCtx.countryInfo = new Map();
         
-        Promise.all([immDataWithAgeGr, emiDataWithAgeGr, geoJson, bordersJson])
+        Promise.all([immDataWithAgeGr, emiDataWithAgeGr, nama_10_gdp_data, geoJson, bordersJson])
             .then((data) => {
 
-                [immDataWithAgeGr, emiDataWithAgeGr, geoJson, bordersJson] = data;
+                [immDataWithAgeGr, emiDataWithAgeGr, nama_10_gdp_data, geoJson, bordersJson] = data;
 
                 immData = immDataWithAgeGr.filter(d => d.age === "TOTAL");
                 emiData = emiDataWithAgeGr.filter(d => d.age === "TOTAL");
 
                 dataCtx.immData = immData;
                 dataCtx.emiData = emiData;
+
+                dataCtx.gdpData = nama_10_gdp_data.filter(d => d.na_item === "B1GQ").map(({ na_item, ...rest }) => rest);
+                dataCtx.wagesAndSalaryData = nama_10_gdp_data.filter(d => d.na_item === "D11").map(({ na_item, ...rest }) => rest);
+
                 dataCtx.geoJson = geoJson;
                 dataCtx.bordersJson = bordersJson;
 
@@ -337,6 +392,9 @@ function loadData(){
                     d => d.srcCountry, d => d.year, d => d.dstCountry, d => d.age
                 );
 
+                dataCtx.gdpDataGrouped = d3.group(dataCtx.gdpData, d => d.country, d => d.year);
+                dataCtx.wagesAndSalaryDataGrouped = d3.group(dataCtx.wagesAndSalaryData, d => d.country, d => d.year);
+
                 // checkDataIntegrity();
 
                 // console.log("immData:", dataCtx.immData);
@@ -349,6 +407,8 @@ function loadData(){
                 // console.log("emiSrcCoutries:", dataCtx.emiSrcCountries);
                 // console.log("emiDataGrouped:", dataCtx.emiDataGrouped);
                 // console.log("emiDataWithAgeGrGrouped:", dataCtx.emiDataWithAgeGrGrouped);
+                // console.log("gdpDataGrouped:", dataCtx.gdpDataGrouped);
+                // console.log("wagesAndSalaryDataGrouped:", dataCtx.wagesAndSalaryDataGrouped);
                 // console.log("countryInfo:", dataCtx.countryInfo);
                 // console.log("geoJson:", dataCtx.geoJson);
                 

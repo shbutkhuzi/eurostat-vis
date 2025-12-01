@@ -782,7 +782,7 @@ function drawMap(){
 
 function createMap(){
 
-    console.log("Using D3 v"+d3.version);
+    // console.log("Using D3 v"+d3.version);
     
     let mainElement = document.getElementById("main");
 
