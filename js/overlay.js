@@ -102,11 +102,20 @@ function updateOverlayVisibility(countrySelected) {
     }
 }
 
-function updatePopupContent(selectedCountry) {
+function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
+
+    console.log(`updatePopupContent(${selectedCountry}, ${selectedYear}, ${selectedMode})`);
+
+    updateStat1(selectedCountry, selectedYear, selectedMode);
+    updateStat2(selectedCountry, selectedYear, selectedMode);
+    
+}
+
+function updateStat1(selectedCountry, selectedYear, selectedMode){
     //const popup = document.getElementById("popup-window");
     //popup.innerHTML = html;
 
-    const popupContent = document.getElementById("popup-content");
+    const popupContent = document.getElementById("stat-1");
     if (!popupContent) return;
 
     selectedCountryData = dataCtx.immDataGrouped.get(selectedCountry);
@@ -134,6 +143,10 @@ function updatePopupContent(selectedCountry) {
     }
 }
 
+function updateStat2(selectedCountry, selectedYear, selectedMode){
+
+}
+
 // Nueva función: renderizar gráfico simple con D3 (línea anual)
 function renderPopupChart(selectedCountry) {
     // Requiere [`mapCtx`](js/map.js)
@@ -142,7 +155,7 @@ function renderPopupChart(selectedCountry) {
     }
 
     const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
-    const container = document.getElementById("popup-content");
+    const container = document.getElementById("stat-1");
     if (!container) return;
 
     // Limpiar chart anterior

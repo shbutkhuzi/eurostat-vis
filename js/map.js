@@ -511,7 +511,8 @@ function updateFlow(selectedCountry, selectedYear){
             const pathId = d3.select(this).attr("id");
             animatePath(pathId);
         });
-    
+
+    updatePopupContent(selectedCountry, currSelectedYear, getCurrentMode());
     focusViewOnFlow(selectedCountry, currSelectedYear);
 };
 
@@ -565,8 +566,6 @@ function switchFlow() {
         .transition()
         .duration(mapCtx.TRANSITION_DEFAULT_DURATION)
         .attr("fill", mapCtx.SELECTABLE_COUNTRY_COLOR);
-
-    updatePopupContent(currSelectedCountry);
 
     d3.select("#mapG")
         .selectAll("path.countryPath")
@@ -637,6 +636,7 @@ function switchFlow() {
         });
 
     updateVisibilities();
+    updatePopupContent(currSelectedCountry, currSelectedYear, getCurrentMode());
 };
 
 
