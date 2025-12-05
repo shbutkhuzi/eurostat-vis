@@ -3,7 +3,32 @@ const dataCtx = {
     BordersUrl: "data/ne_50m_admin_0_countries_borders.geojson",
     immDataUrl: "data/raw/estat_migr_imm5prv.csv",
     emiDataUrl: "data/raw/estat_migr_emi3nxt.csv",
-    nama_10_gdp_Url: "data/raw/nama_10_gdp.csv"
+    nama_10_gdp_Url: "data/raw/nama_10_gdp.csv",
+    countryNameMap: {
+        "Türkiye": "Turkey",
+        "Serbia": "Republic of Serbia",
+        "Kosovo*": "Kosovo"
+    },
+    ageGroupMap: {
+        "Y_LT5": "0-4",
+        "Y5-9": "5-9",
+        "Y10-14": "10-14",
+        "Y15-19": "15-19",
+        "Y20-24": "20-24",
+        "Y25-29": "25-29",
+        "Y30-34": "30-34",
+        "Y35-39": "35-39",
+        "Y40-44": "40-44",
+        "Y45-49": "45-49",
+        "Y50-54": "50-54",
+        "Y55-59": "55-59",
+        "Y60-64": "60-64",
+        "Y65-69": "65-69",
+        "Y70-74": "70-74",
+        "Y75-79": "75-79",
+        "Y80-84": "80-84",
+        "Y_GE85": "85+"
+    }
 }
 
 
@@ -15,7 +40,8 @@ function checkDataIntegrity(){
     let incompleteSexDataEmi = [];
     let missingGdpCountries = [];
     let missingWagesCountries = [];
-    // let incompleteAgeGrData = [];
+    let invalidAgeGroupsImm = [];
+    let invalidAgeGroupsEmi = [];
 
     dataCtx.immDstCountries.forEach(country => {
         if (!dataCtx.countryInfo.has(country)) {
@@ -163,48 +189,34 @@ function checkDataIntegrity(){
         }
     });
 
-    // // Check age group data: for each dstCountry, srcCountry, age and year there must be
-    // // at least one record with sex === "T" and a valid value attribute, if not add based on other attributes
-    // dataCtx.immDataWithAgeGrGrouped.forEach((srcCountryMap, dstCountry) => {
-    //     srcCountryMap.forEach((ageMap, srcCountry) => {
-    //         ageMap.forEach((yearMap, age) => {
-    //             yearMap.forEach((records, year) => {
-    //                 if (!Array.isArray(records) || records.length === 0) {
-    //                     incompleteAgeGrData.push({ dstCountry, srcCountry, age, year, issue: `Empty or invalid records` });
-    //                 } else {
-    //                     let totalRecord = records.find(r => r.sex === "T");
-                        
-    //                     if (!totalRecord) {
-    //                         const maleRecord = records.find(r => r.sex === "M");
-    //                         const femaleRecord = records.find(r => r.sex === "F");
-                            
-    //                         if (maleRecord || femaleRecord) {
-    //                             const maleValue = maleRecord?.value || 0;
-    //                             const femaleValue = femaleRecord?.value || 0;
-                                
-    //                             totalRecord = {
-    //                                 dstCountry: dstCountry,
-    //                                 srcCountry: srcCountry,
-    //                                 year: year,
-    //                                 value: maleValue + femaleValue,
-    //                                 sex: "T",
-    //                                 age: age
-    //                             };
-                                
-    //                             records.push(totalRecord);
-    //                         } else {
-    //                             incompleteAgeGrData.push({ dstCountry, srcCountry, age, year, issue: `Missing sex="T" record and no M/F records to calculate from` });
-    //                         }
-    //                     }
-                        
-    //                     if (totalRecord && (totalRecord.value == null || typeof totalRecord.value !== 'number')) {
-    //                         incompleteAgeGrData.push({ dstCountry, srcCountry, age, year, issue: `Invalid or missing value attribute` });
-    //                     }
-    //                 }
-    //             });
-    //         });
-    //     });
-    // });
+    // Check age groups in immigration data
+    const validAgeGroups = Object.values(dataCtx.ageGroupMap);
+    const immDataFiltered = dataCtx.immDataWithAgeGroupsOnly.filter(d => d.age !== "TOTAL");
+    immDataFiltered.forEach(d => {
+        if (!validAgeGroups.includes(d.age)) {
+            invalidAgeGroupsImm.push({ 
+                dstCountry: d.dstCountry, 
+                srcCountry: d.srcCountry, 
+                year: d.year, 
+                age: d.age, 
+                issue: `Age group "${d.age}" not found in ageGroupMap` 
+            });
+        }
+    });
+
+    // Check age groups in emigration data
+    const emiDataFiltered = dataCtx.emiDataWithAgeGroupsOnly.filter(d => d.age !== "TOTAL");
+    emiDataFiltered.forEach(d => {
+        if (!validAgeGroups.includes(d.age)) {
+            invalidAgeGroupsEmi.push({ 
+                srcCountry: d.srcCountry, 
+                dstCountry: d.dstCountry, 
+                year: d.year, 
+                age: d.age, 
+                issue: `Age group "${d.age}" not found in ageGroupMap` 
+            });
+        }
+    });
 
     if (missingCountries.length > 0) {
         console.warn("Missing countries in geoJSON:", missingCountries);
@@ -230,11 +242,15 @@ function checkDataIntegrity(){
         console.warn("Countries in wages/salary data not found in countryInfo:", missingWagesCountries);
     }
 
-    // if (incompleteAgeGrData.length > 0) {
-    //     console.warn("Incomplete age group data entries:", incompleteAgeGrData);
-    // }
+    if (invalidAgeGroupsImm.length > 0) {
+        console.warn("Invalid age groups in immigration data:", invalidAgeGroupsImm);
+    }
 
-    if (missingCountries.length === 0 && invalidCoordinates.length === 0 && incompleteSexDataImm.length === 0 && incompleteSexDataEmi.length === 0 && missingGdpCountries.length === 0 && missingWagesCountries.length === 0) {
+    if (invalidAgeGroupsEmi.length > 0) {
+        console.warn("Invalid age groups in emigration data:", invalidAgeGroupsEmi);
+    }
+
+    if (missingCountries.length === 0 && invalidCoordinates.length === 0 && incompleteSexDataImm.length === 0 && incompleteSexDataEmi.length === 0 && missingGdpCountries.length === 0 && missingWagesCountries.length === 0 && invalidAgeGroupsImm.length === 0 && invalidAgeGroupsEmi.length === 0) {
         console.log("Data integrity check passed!");
     }
 
@@ -250,19 +266,16 @@ function loadData(){
             const value = +d.OBS_VALUE;
             let dstCountry = d["Geopolitical entity (reporting)"];
             let srcCountry = d["Geopolitical entity (partner)"];
+            let age = d["age"];
 
             if (value === 0 || dstCountry === srcCountry) {
                 return null;
             }
 
-            const countryNameMap = {
-                "Türkiye": "Turkey",
-                "Serbia": "Republic of Serbia",
-                "Kosovo*": "Kosovo"
-            };
+            dstCountry = dataCtx.countryNameMap[dstCountry] || dstCountry;
+            srcCountry = dataCtx.countryNameMap[srcCountry] || srcCountry;
 
-            dstCountry = countryNameMap[dstCountry] || dstCountry;
-            srcCountry = countryNameMap[srcCountry] || srcCountry;
+            age = dataCtx.ageGroupMap[age] || age;
 
             return {
                 dstCountry: dstCountry,
@@ -270,7 +283,7 @@ function loadData(){
                 year: +d.TIME_PERIOD,
                 value: value,
                 sex: d.sex,
-                age: d.age
+                age: age
             };
 
         });
@@ -280,19 +293,16 @@ function loadData(){
             const value = +d.OBS_VALUE;
             let srcCountry = d["Geopolitical entity (reporting)"];
             let dstCountry = d["Geopolitical entity (partner)"];
+            let age = d["age"];
 
             if (value === 0 || dstCountry === srcCountry) {
                 return null;
             }
 
-            const countryNameMap = {
-                "Türkiye": "Turkey",
-                "Serbia": "Republic of Serbia",
-                "Kosovo*": "Kosovo"
-            };
+            dstCountry = dataCtx.countryNameMap[dstCountry] || dstCountry;
+            srcCountry = dataCtx.countryNameMap[srcCountry] || srcCountry;
 
-            dstCountry = countryNameMap[dstCountry] || dstCountry;
-            srcCountry = countryNameMap[srcCountry] || srcCountry;
+            age = dataCtx.ageGroupMap[age] || age;
 
             return {
                 dstCountry: dstCountry,
@@ -300,7 +310,7 @@ function loadData(){
                 year: +d.TIME_PERIOD,
                 value: value,
                 sex: d.sex,
-                age: d.age
+                age: age
             };
 
         });
@@ -314,13 +324,7 @@ function loadData(){
                 return null;
             }
 
-            const countryNameMap = {
-                "Türkiye": "Turkey",
-                "Serbia": "Republic of Serbia",
-                "Kosovo*": "Kosovo"
-            };
-
-            country = countryNameMap[country] || country;
+            country = dataCtx.countryNameMap[country] || country;
 
             return {
                 country: country,
@@ -384,11 +388,14 @@ function loadData(){
                 dataCtx.immDataGrouped = d3.group(immData, d => d.dstCountry, d => d.year, d => d.srcCountry);
                 dataCtx.emiDataGrouped = d3.group(emiData, d => d.srcCountry, d => d.year, d => d.dstCountry);
 
-                dataCtx.immDataWithAgeGrGrouped = d3.group(immDataWithAgeGr,
+                dataCtx.immDataWithAgeGroupsOnly = immDataWithAgeGr.filter(d => d.age !== "TOTAL");
+                dataCtx.emiDataWithAgeGroupsOnly = emiDataWithAgeGr.filter(d => d.age !== "TOTAL");
+
+                dataCtx.immDataWithAgeGrGrouped = d3.group(dataCtx.immDataWithAgeGroupsOnly,
                     d => d.dstCountry, d => d.year, d => d.srcCountry, d => d.age
                 );
 
-                dataCtx.emiDataWithAgeGrGrouped = d3.group(emiDataWithAgeGr,
+                dataCtx.emiDataWithAgeGrGrouped = d3.group(dataCtx.emiDataWithAgeGroupsOnly,
                     d => d.srcCountry, d => d.year, d => d.dstCountry, d => d.age
                 );
 

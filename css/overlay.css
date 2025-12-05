@@ -102,11 +102,13 @@
     color: #ddd;
     font-family: Inter, Arial, sans-serif; /* fuente del popup */
     font-size: 14px;
+    position: relative;
+    padding: 5px;
 }
 
-/* #stat-1 {
+#stat-1 {
     border-right: 1px solid rgba(139, 92, 246, 0.3);
-} */
+}
 
 /* Custom scrollbar for popup content */
 #stat-1::-webkit-scrollbar,
