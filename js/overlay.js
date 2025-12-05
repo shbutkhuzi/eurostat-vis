@@ -1,37 +1,92 @@
 // Overlay state management
 const overlayState = {
-    isPopupOpen: false,
+    isStatsPopupOpen: false,
+    isInfoPopupOpen: false,
     isAnimating: false
 };
 
 // Initialize overlay UI
 function initOverlay() {
-    const overlayContainer = document.getElementById('overlay-container');
     const detailsButton = document.getElementById('details-button');
-    const popupWindow = document.getElementById('popup-window');
+    const statisticsButton = document.getElementById('statistics-button');
 
     // Button click handler
-    detailsButton.addEventListener('click', togglePopup);
+    detailsButton.addEventListener('click', toggleInfoPopup);
+    statisticsButton.addEventListener('click', toggleStatsPopup);
 }
 
-// Toggle popup window
-function togglePopup() {
+// Toggle stats popup window
+function toggleStatsPopup() {
     if (overlayState.isAnimating) return;
     
-    const popupWindow = document.getElementById('popup-window');
-    const buttonIcon = document.getElementById('button-icon');
-    
-    if (overlayState.isPopupOpen) {
-        closePopup();
+    if (overlayState.isStatsPopupOpen) {
+        closeStatsPopup();
     } else {
-        openPopup();
+        openStatsPopup();
     }
 }
 
-// Open popup window
-function openPopup() {
+// Toggle info popup window
+function toggleInfoPopup() {
+    if (overlayState.isAnimating) return;
+    
+    if (overlayState.isInfoPopupOpen) {
+        closeInfoPopup();
+    } else {
+        openInfoPopup();
+    }
+}
+
+// Open stats popup window
+function openStatsPopup() {
     overlayState.isAnimating = true;
     const popupWindow = document.getElementById('popup-window');
+    const statsIcon = document.getElementById('stats-icon');
+    
+    popupWindow.classList.remove('closing');
+    popupWindow.classList.add('visible');
+    
+    // Change icon to close (X)
+    statsIcon.innerHTML = `
+        <line x1="6" y1="6" x2="18" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <line x1="18" y1="6" x2="6" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    `;
+    
+    overlayState.isStatsPopupOpen = true;
+    
+    setTimeout(() => {
+        overlayState.isAnimating = false;
+    }, 400);
+}
+
+// Close stats popup window
+function closeStatsPopup() {
+    overlayState.isAnimating = true;
+    const popupWindow = document.getElementById('popup-window');
+    const statsIcon = document.getElementById('stats-icon');
+    
+    popupWindow.classList.add('closing');
+    
+    // Change icon back to stats
+    statsIcon.innerHTML = `
+        <path d="M3 20H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 20V4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="7" y="12" width="3" height="6" fill="white" rx="0.5"/>
+        <rect x="12" y="6" width="3" height="12" fill="white" rx="0.5"/>
+        <rect x="17" y="9" width="3" height="9" fill="white" rx="0.5"/>
+    `;
+    
+    setTimeout(() => {
+        popupWindow.classList.remove('visible', 'closing');
+        overlayState.isStatsPopupOpen = false;
+        overlayState.isAnimating = false;
+    }, 300);
+}
+
+// Open info popup window
+function openInfoPopup() {
+    overlayState.isAnimating = true;
+    const popupWindow = document.getElementById('info-popup-window');
     const buttonIcon = document.getElementById('button-icon');
     
     popupWindow.classList.remove('closing');
@@ -43,22 +98,22 @@ function openPopup() {
         <line x1="18" y1="6" x2="6" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"/>
     `;
     
-    overlayState.isPopupOpen = true;
+    overlayState.isInfoPopupOpen = true;
     
     setTimeout(() => {
         overlayState.isAnimating = false;
     }, 400);
 }
 
-// Close popup window
-function closePopup() {
+// Close info popup window
+function closeInfoPopup() {
     overlayState.isAnimating = true;
-    const popupWindow = document.getElementById('popup-window');
+    const popupWindow = document.getElementById('info-popup-window');
     const buttonIcon = document.getElementById('button-icon');
     
     popupWindow.classList.add('closing');
     
-    // Change icon back to info/details
+    // Change icon back to info
     buttonIcon.innerHTML = `
         <circle cx="12" cy="12" r="9" stroke="white" stroke-width="2" fill="none"/>
         <text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold">i</text>
@@ -66,30 +121,30 @@ function closePopup() {
     
     setTimeout(() => {
         popupWindow.classList.remove('visible', 'closing');
-        overlayState.isPopupOpen = false;
+        overlayState.isInfoPopupOpen = false;
         overlayState.isAnimating = false;
     }, 300);
 }
 
 // Show button when country is selected
 function showDetailsButton() {
-    const detailsButton = document.getElementById('details-button');
-    detailsButton.classList.add('visible');
+    const statisticsButton = document.getElementById('statistics-button');
+    statisticsButton.classList.add('visible');
 }
 
 // Hide button when country is deselected
 function hideDetailsButton() {
-    const detailsButton = document.getElementById('details-button');
+    const statisticsButton = document.getElementById('statistics-button');
     
     // If popup is open, close it first
-    if (overlayState.isPopupOpen) {
-        closePopup();
+    if (overlayState.isStatsPopupOpen) {
+        closeStatsPopup();
         // Wait for popup close animation to finish before hiding button
         setTimeout(() => {
-            detailsButton.classList.remove('visible');
+            statisticsButton.classList.remove('visible');
         }, 300);
     } else {
-        detailsButton.classList.remove('visible');
+        statisticsButton.classList.remove('visible');
     }
 }
 

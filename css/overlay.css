@@ -9,11 +9,10 @@
     z-index: 1000;
 }
 
-/* Details button */
-#details-button {
+/* Details button and Statistics button */
+#details-button, #statistics-button {
     position: absolute;
     bottom: 20px;
-    left: 20px;
     width: 50px;
     height: 50px;
     background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
@@ -30,40 +29,46 @@
     justify-content: center;
 }
 
-#details-button.visible {
+#details-button {
+    left: 20px;
     opacity: 1;
     transform: scale(1);
 }
 
-#details-button:hover {
+#statistics-button {
+    left: 80px;
+}
+
+#details-button.visible, #statistics-button.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+#details-button:hover, #statistics-button:hover {
     background: linear-gradient(135deg, #9d66ff 0%, #8b45ff 100%);
     box-shadow: 0 6px 16px rgba(139, 92, 246, 0.6);
     transform: scale(1.05);
 }
 
-#details-button:active {
+#details-button:active, #statistics-button:active {
     transform: scale(0.95);
 }
 
 /* Button icon */
-#button-icon {
+#button-icon, #stats-icon {
     width: 24px;
     height: 24px;
     fill: white;
     transition: transform 0.3s ease;
 }
 
-#details-button:hover #button-icon {
+#details-button:hover #button-icon, #statistics-button:hover #stats-icon {
     transform: scale(1.1);
 }
 
-/* Popup window */
-#popup-window {
+/* Popup window shared styles */
+#popup-window, #info-popup-window {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    right: 20px;
-    bottom: 90px;
     background: rgba(18, 18, 18, 0.95);
     border: 2px solid #8b5cf6;
     border-radius: 16px;
@@ -72,9 +77,18 @@
     box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
     backdrop-filter: blur(10px);
     opacity: 0;
+    visibility: hidden;
+}
+
+/* Statistics Popup (Full screen minus margins) */
+#popup-window {
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 90px;
     transform: translateY(-20px) scale(0.95);
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    visibility: hidden;
+    z-index: 1000;
 }
 
 #popup-window.visible {
@@ -89,10 +103,59 @@
     transition: all 0.3s ease;
 }
 
+/* Info Popup (Centered, 60% width, ~90% of stats popup height) */
+#info-popup-window {
+    width: 60%;
+    height: calc(80% - 88px);
+    top: calc(50% - 35px);
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 2000; /* Always on top */
+}
+
+#info-popup-window.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    visibility: visible;
+}
+
+#info-popup-window.closing {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+    transition: all 0.3s ease;
+}
+
 /* Popup content containers */
 #popup-window {
     display: flex;
     flex-direction: row;
+}
+
+#info-popup-window {
+    display: block;
+    overflow-y: auto;
+}
+
+#info-content {
+    color: #ddd;
+    font-family: Inter, Arial, sans-serif;
+    font-size: 14px;
+    padding: 5px;
+    line-height: 1.6;
+}
+
+#info-content h2 {
+    color: #8b5cf6;
+    margin-top: 0;
+}
+
+#info-content ul {
+    padding-left: 20px;
+}
+
+#info-content li {
+    margin-bottom: 8px;
 }
 
 #stat-1, #stat-2 {
@@ -112,23 +175,27 @@
 
 /* Custom scrollbar for popup content */
 #stat-1::-webkit-scrollbar,
-#stat-2::-webkit-scrollbar {
+#stat-2::-webkit-scrollbar,
+#info-popup-window::-webkit-scrollbar {
     width: 8px;
 }
 
 #stat-1::-webkit-scrollbar-track,
-#stat-2::-webkit-scrollbar-track {
+#stat-2::-webkit-scrollbar-track,
+#info-popup-window::-webkit-scrollbar-track {
     background: rgba(139, 92, 246, 0.1);
     border-radius: 4px;
 }
 
 #stat-1::-webkit-scrollbar-thumb,
-#stat-2::-webkit-scrollbar-thumb {
+#stat-2::-webkit-scrollbar-thumb,
+#info-popup-window::-webkit-scrollbar-thumb {
     background: rgba(139, 92, 246, 0.5);
     border-radius: 4px;
 }
 
 #stat-1::-webkit-scrollbar-thumb:hover,
-#stat-2::-webkit-scrollbar-thumb:hover {
+#stat-2::-webkit-scrollbar-thumb:hover,
+#info-popup-window::-webkit-scrollbar-thumb:hover {
     background: rgba(139, 92, 246, 0.7);
 }
