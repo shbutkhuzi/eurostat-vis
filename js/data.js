@@ -218,6 +218,17 @@ function checkDataIntegrity(){
         }
     });
 
+    // Check if GDP data has valid years
+    let gdpYearRange = { min: Infinity, max: -Infinity };
+    dataCtx.gdpDataGrouped.forEach((yearMap) => {
+        yearMap.forEach((_, year) => {
+            gdpYearRange.min = Math.min(gdpYearRange.min, year);
+            gdpYearRange.max = Math.max(gdpYearRange.max, year);
+        });
+    });
+
+    console.log(`GDP data available from ${gdpYearRange.min} to ${gdpYearRange.max}`);
+
     if (missingCountries.length > 0) {
         console.warn("Missing countries in geoJSON:", missingCountries);
     }
@@ -429,5 +440,24 @@ function loadData(){
 
 };
 
+// Helper function to get top N countries by GDP for a given year
+function getTopGdpCountriesByYear(year, topN = 10) {
+    const gdpByCountry = new Map();
+    
+    dataCtx.gdpDataGrouped.forEach((yearMap, country) => {
+        if (yearMap.has(year)) {
+            const yearData = yearMap.get(year);
+            // yearData is an array of records for this country and year
+            const totalGdp = d3.sum(yearData, d => d.value);
+            gdpByCountry.set(country, totalGdp);
+        }
+    });
+    
+    // Sort by GDP descending and get top N
+    return Array.from(gdpByCountry.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, topN)
+        .map(([country, value]) => ({ country, value }));
+}
 
 
