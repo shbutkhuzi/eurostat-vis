@@ -220,13 +220,43 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
     }
 }
 
-// ...existing code...
+
 function updateStat2(selectedCountry, selectedYear, selectedMode){
 
-    let stat2Element = document.getElementById("stat-2");
+    const stat2Element = document.getElementById("stat-2");
+    if (!stat2Element) return;
+
+    const titleHeight = 28;
+
+    stat2Element.style.display = "flex";
+    stat2Element.style.flexDirection = "column";
+
+    let titleEl = stat2Element.querySelector("#stat-2-title");
+    if (!titleEl) {
+        titleEl = document.createElement("div");
+        titleEl.id = "stat-2-title";
+        stat2Element.insertBefore(titleEl, stat2Element.firstChild);
+    }
+
+    titleEl.textContent = "Migration volume breakdown (partner country, age when available)";
+    Object.assign(titleEl.style, {
+        height: `${titleHeight}px`,
+        lineHeight: `${titleHeight}px`,
+        flex: `0 0 ${titleHeight}px`,
+        padding: "0 8px",
+        fontSize: "12px",
+        fontWeight: "600",
+        color: "#ccc",
+        textAlign: "center",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        userSelect: "none"
+    });
 
     const width = stat2Element.clientWidth;
-    const height = stat2Element.clientHeight;
+    const containerHeight = stat2Element.clientHeight;
+    const height = Math.max(0, containerHeight - titleHeight);
 
     var divEl = d3.select("#stat-2");
     divEl.style("overflow", "hidden");
