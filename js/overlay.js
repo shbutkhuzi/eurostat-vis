@@ -161,6 +161,15 @@ function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
 
     console.log(`updatePopupContent(${selectedCountry}, ${selectedYear}, ${selectedMode})`);
 
+     // expose current selected year so highlight/playback helpers can use it
+    window.popupSelectedYear = selectedYear;
+
+    // if a highlight helper exists, ask it to update (keeps sync with slider/play)
+    if (typeof window.highlightPopupYear === "function" && selectedYear != null) {
+        // call async so render/update sequence finished
+        setTimeout(() => window.highlightPopupYear(selectedYear), 20);
+    }
+
     updateStat1(selectedCountry, selectedYear, selectedMode);
     updateStat2(selectedCountry, selectedYear, selectedMode);
     
@@ -708,7 +717,6 @@ function drawMigrationBarChart(selectedCountry, selectedYear, selectedMode){
     });
 }
 
-// ...existing code...
 function renderPopupChart(selectedCountry) {
     const container = document.getElementById("popup-chart-wrapper");
     if (!container || !dataCtx || !dataCtx.immDataGrouped) return;
@@ -734,6 +742,9 @@ function renderPopupChart(selectedCountry) {
         msg.style.color = '#ccc';
         msg.textContent = 'No migration time series data';
         container.appendChild(msg);
+        // clear any previously stored series so highlight doesn't try to access it
+        window.popupSeriesData = null;
+        window.popupScales = null;
         return;
     }
 
@@ -746,6 +757,11 @@ function renderPopupChart(selectedCountry) {
             return { year: +y, value: totalValue };
         })
         .sort((a, b) => a.year - b.year);
+
+    // store series (years + values) globally so slider/play controls can sync highlights
+    window.popupSeriesData = data;
+    // allow clients to find year indices
+    window.popupSeriesYears = data.map(d => d.year);
 
     const margin = { top: 12, right: 12, bottom: 38, left: 100 };
     const width = Math.max(320, container.clientWidth || 400);
@@ -769,6 +785,9 @@ function renderPopupChart(selectedCountry) {
         .domain([0, d3.max(data, d => d.value) || 1])
         .nice()
         .range([h, 0]);
+
+    // keep scales and groups accessible for highlight function
+    window.popupScales = { x, y, g, svg, margin, w, h, width, height };
 
     // axis groups (clear group contents to avoid doubling)
     let xAxisG = g.select("g#popup-x-axis");
@@ -851,10 +870,39 @@ function renderPopupChart(selectedCountry) {
     // tooltip title
     pointsMerge.select("title").remove();
     pointsMerge.append("title").text(d => `${d.year}: ${d.value}`);
+    // Highlight group (single marker + label) — create once and reuse
+    let hl = svg.select("g#popup-highlight-group");
+    if (hl.empty()) {
+        hl = svg.append("g").attr("id", "popup-highlight-group").style("pointer-events", "none").style("opacity", 0);
+        // marker circle (in popup G coordinates -> append inside g and translate with margin)
+        hl.append("circle").attr("id", "popup-highlight-circle")
+            .attr("r", 6)
+            .attr("fill", "#ffeb3b")
+            .attr("stroke", "#6b1f9b")
+            .attr("stroke-width", 1.5);
+        // numeric label background
+        hl.append("rect").attr("id", "popup-highlight-bg")
+            .attr("rx", 4)
+            .attr("ry", 4)
+            .attr("fill", "rgba(0,0,0,0.6)");
+        // numeric label text
+        hl.append("text").attr("id", "popup-highlight-label")
+            .attr("fill", "#fff")
+            .style("font-size", "12px")
+            .style("font-weight", "700")
+            .attr("dy", "0.35em");
+    }
+
+    // Ensure highlight state matches currently selected year (if any)
+    if (window.popupSelectedYear != null) {
+        setTimeout(() => {
+            if (typeof window.highlightPopupYear === "function") window.highlightPopupYear(window.popupSelectedYear);
+        }, 120);
+    }
 }
 
-// ...existing code...
-function renderGdpBarChart(selectedCountry, selectedYear, selectedMode = "immigration", topN = 10) {
+
+function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 10) {
     const container = document.getElementById("gdp-chart-container");
     if (!container || !dataCtx || !dataCtx.gdpDataGrouped) return;
 
@@ -881,10 +929,11 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode = "immigr
         connectedSet = new Set();
     }
 
-    // Build GDP map but only for connected partners
+    // Build GDP map but include selectedCountry explicitly so it will appear among candidates
     const gdpMap = new Map();
     dataCtx.gdpDataGrouped.forEach((yearMap, country) => {
-        if (!connectedSet.size || connectedSet.has(country)) { // if no connections, keep empty behavior later
+        // include country if it's a connected partner OR it's the selectedCountry OR there are no connections (fallback)
+        if (!connectedSet.size || connectedSet.has(country) || (selectedCountry && country === selectedCountry)) {
             if (yearMap.has(selectedYear)) {
                 const recs = yearMap.get(selectedYear);
                 const total = d3.sum(recs, r => r.value || +r.VALUE || 0);
@@ -893,23 +942,35 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode = "immigr
         }
     });
 
-    // If we had a selectedCountry and expected connections but none found -> show message
+    // If we expected connections but found none and selectedCountry has no GDP -> show message
     if (selectedCountry && selectedYear && connectedSet.size && gdpMap.size === 0) {
-        container.innerHTML = `<p style="color:#999">No GDP data for connected partners of ${selectedCountry} in ${selectedYear}.</p>`;
+        container.innerHTML = `<p style="color:#999">No GDP data for connected partners of ${selectedCountry} in ${selectedYear} (and selected country has no GDP for that year).</p>`;
         return;
     }
 
-    // If selectedCountry provided but no connected partners found, show message
-    if (selectedCountry && selectedYear && !connectedSet.size) {
+    // If selectedCountry provided but no connected partners found, show message (unless selectedCountry had GDP and will be shown)
+    if (selectedCountry && selectedYear && !connectedSet.size && !gdpMap.has(selectedCountry)) {
         container.innerHTML = `<p style="color:#999">No connected partner data for ${selectedCountry} in ${selectedYear}.</p>`;
         return;
     }
 
-    // If no selectedCountry provided, behave as before: show top overall (gdpMap already built)
-    const top = Array.from(gdpMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, topN)
-        .map(([country, value]) => ({ country, value }));
+    // Compute top list (sorted descending). Because selectedCountry was included in gdpMap above,
+    // it will appear in the ranking even if not a partner.
+    const entries = Array.from(gdpMap.entries()).map(([country, value]) => ({ country, value }));
+    entries.sort((a, b) => b.value - a.value);
+
+    // If there are more than topN and selectedCountry is not in topN, ensure selectedCountry is included:
+    let top = entries.slice(0, topN);
+    if (selectedCountry && gdpMap.has(selectedCountry)) {
+        const inTop = top.some(d => d.country === selectedCountry);
+        if (!inTop) {
+            const selVal = gdpMap.get(selectedCountry);
+            // Insert selectedCountry into correct position and trim to topN
+            top.push({ country: selectedCountry, value: selVal });
+            top.sort((a, b) => b.value - a.value);
+            top = top.slice(0, topN);
+        }
+    }
 
     container.style.position = 'relative';
     container.style.overflow = 'visible';
@@ -1075,4 +1136,117 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode = "immigr
         .text(`${modeLabel} — Top ${topN} by GDP — ${selectedYear}`);
     title.transition().delay(100).duration(400).style("opacity", 1);
 }
+
 // ...existing code...
+// Highlight helper & simple playback sync for popup timeline
+// call highlightPopupYear(yearNumber) to move the emphasis marker + show numeric label
+function highlightPopupYear(year) {
+    const data = window.popupSeriesData;
+    const s = window.popupScales;
+    if (!data || !s || year == null) {
+        // hide highlight if not available
+        const svg = d3.select("#popup-svg");
+        svg.select("g#popup-highlight-group").transition().duration(120).style("opacity", 0);
+        return;
+    }
+
+    const point = data.find(d => d.year === +year);
+    if (!point) {
+        d3.select("#popup-svg").select("g#popup-highlight-group").transition().duration(120).style("opacity", 0);
+        return;
+    }
+
+    const xPos = s.margin.left + s.x(point.year);
+    const yPos = s.margin.top + s.y(point.value);
+
+    const svg = d3.select("#popup-svg");
+    const hl = svg.select("g#popup-highlight-group");
+    if (hl.empty()) return;
+
+    const labelText = `${point.year}: ${Math.round(point.value).toLocaleString()}`;
+    const txt = hl.select("text#popup-highlight-label").text(labelText);
+
+    // measure text to size bg rect
+    // temporarily set to visibility hidden to measure
+    txt.attr("x", 0).attr("y", 0);
+    const bbox = txt.node().getBBox();
+    const pad = 6;
+    hl.select("rect#popup-highlight-bg")
+        .attr("width", bbox.width + pad * 2)
+        .attr("height", bbox.height + pad)
+        .attr("x", xPos + 10 - pad)
+        .attr("y", yPos - bbox.height / 2 - pad / 2);
+
+    txt.attr("x", xPos + 10).attr("y", yPos).attr("text-anchor", "start");
+
+    // position circle inside overall svg coords
+    hl.select("circle#popup-highlight-circle")
+        .attr("cx", xPos)
+        .attr("cy", yPos);
+
+    // show with a small pulse animation
+    hl.transition().duration(120).style("opacity", 1);
+    const circ = hl.select("circle#popup-highlight-circle");
+    circ.transition().duration(220).attr("r", 10).transition().duration(220).attr("r", 6);
+
+    // also try to update year-slider value so flow network / other UI stays in sync
+    try {
+        const slider = document.getElementById("year-slider");
+        if (slider && Array.isArray(window.popupSeriesYears)) {
+            const idx = window.popupSeriesYears.indexOf(+year);
+            if (idx >= 0 && slider.value != idx) {
+                slider.value = idx;
+                // dispatch events so other listeners (slider.js) react
+                slider.dispatchEvent(new Event("input", { bubbles: true }));
+                slider.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+// expose globally so other modules can call it
+window.highlightPopupYear = highlightPopupYear;
+
+// Simple playback for popup timeline (keeps slider and highlight in sync).
+// This will toggle an internal interval and manipulate the #year-slider value so the rest of the app reacts.
+(function setupPopupPlayback() {
+    const playBtn = document.getElementById("play-pause-button");
+    if (!playBtn) return;
+
+    let intervalId = null;
+    playBtn.addEventListener("click", () => {
+        const slider = document.getElementById("year-slider");
+        if (!slider) return;
+
+        // toggle: if we control playback start, otherwise try to detect existing play state
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+            playBtn.classList.remove("playing");
+            // optionally revert icon handled elsewhere
+            return;
+        }
+
+        // start playback: advance index each step
+        playBtn.classList.add("playing");
+        intervalId = setInterval(() => {
+            const years = window.popupSeriesYears || [];
+            if (!years.length) return;
+
+            // slider likely uses index; ensure we have integer index
+            let idx = parseInt(slider.value, 10) || 0;
+            idx = Math.min(Number(slider.max || years.length - 1), idx + 1);
+            if (idx > (slider.max || years.length - 1)) idx = 0;
+
+            slider.value = idx;
+            slider.dispatchEvent(new Event("input", { bubbles: true }));
+            slider.dispatchEvent(new Event("change", { bubbles: true }));
+
+            // highlightPopupYear will be invoked from updatePopupContent (we also call it directly to be safe)
+            const year = years[idx];
+            if (typeof window.highlightPopupYear === "function") window.highlightPopupYear(year);
+
+        }, 900); // playback speed (ms) — adjust as needed
+    });
+})();
