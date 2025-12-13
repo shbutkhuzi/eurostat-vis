@@ -212,7 +212,7 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
     // Always update GDP chart (it updates with year)
     if (selectedYear) {
         setTimeout(() => {
-            renderGdpBarChart(selectedYear, 10);
+        renderGdpBarChart(selectedCountry, selectedYear, selectedMode, 10);
         }, 50);
     } else {
         const gcont = document.getElementById("gdp-chart-container");
@@ -853,19 +853,59 @@ function renderPopupChart(selectedCountry) {
     pointsMerge.append("title").text(d => `${d.year}: ${d.value}`);
 }
 
-function renderGdpBarChart(selectedYear, topN = 10) {
+// ...existing code...
+function renderGdpBarChart(selectedCountry, selectedYear, selectedMode = "immigration", topN = 10) {
     const container = document.getElementById("gdp-chart-container");
     if (!container || !dataCtx || !dataCtx.gdpDataGrouped) return;
 
+    // Determine connected partner countries for selectedCountry/year/mode
+    let connectedSet = new Set();
+    try {
+        if (selectedCountry && selectedYear) {
+            let yearMapForCountry = null;
+            if (selectedMode === "immigration") {
+                const countryMap = dataCtx.immDataGrouped.get(selectedCountry);
+                if (countryMap) yearMapForCountry = countryMap.get(selectedYear);
+            } else if (selectedMode === "emigration") {
+                const countryMap = dataCtx.emiDataGrouped.get(selectedCountry);
+                if (countryMap) yearMapForCountry = countryMap.get(selectedYear);
+            }
+            if (yearMapForCountry && typeof yearMapForCountry.forEach === "function") {
+                yearMapForCountry.forEach((entries, partnerCountry) => {
+                    connectedSet.add(partnerCountry);
+                });
+            }
+        }
+    } catch (e) {
+        // fallback to empty connected set
+        connectedSet = new Set();
+    }
+
+    // Build GDP map but only for connected partners
     const gdpMap = new Map();
     dataCtx.gdpDataGrouped.forEach((yearMap, country) => {
-        if (yearMap.has(selectedYear)) {
-            const recs = yearMap.get(selectedYear);
-            const total = d3.sum(recs, r => r.value || +r.VALUE || 0);
-            gdpMap.set(country, total);
+        if (!connectedSet.size || connectedSet.has(country)) { // if no connections, keep empty behavior later
+            if (yearMap.has(selectedYear)) {
+                const recs = yearMap.get(selectedYear);
+                const total = d3.sum(recs, r => r.value || +r.VALUE || 0);
+                gdpMap.set(country, total);
+            }
         }
     });
 
+    // If we had a selectedCountry and expected connections but none found -> show message
+    if (selectedCountry && selectedYear && connectedSet.size && gdpMap.size === 0) {
+        container.innerHTML = `<p style="color:#999">No GDP data for connected partners of ${selectedCountry} in ${selectedYear}.</p>`;
+        return;
+    }
+
+    // If selectedCountry provided but no connected partners found, show message
+    if (selectedCountry && selectedYear && !connectedSet.size) {
+        container.innerHTML = `<p style="color:#999">No connected partner data for ${selectedCountry} in ${selectedYear}.</p>`;
+        return;
+    }
+
+    // If no selectedCountry provided, behave as before: show top overall (gdpMap already built)
     const top = Array.from(gdpMap.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, topN)
@@ -879,7 +919,12 @@ function renderGdpBarChart(selectedYear, topN = 10) {
         return;
     }
 
-    const margin = { top: 52, right: 12, bottom: 28, left: 140 };
+    // --- Dynamic left margin based on longest country name ---
+    const maxLabelChars = d3.max(top, d => d.country.length) || 10;
+    const approxCharWidth = 8; // px per char approximation
+    const computedLeft = Math.max(60, Math.min(140, maxLabelChars * approxCharWidth + 16));
+
+    const margin = { top: 52, right: 12, bottom: 28, left: computedLeft };
     const width = Math.max(320, container.clientWidth || 420);
     const height = Math.max(200, top.length * 30 + margin.top + margin.bottom);
     const chartW = width - margin.left - margin.right;
@@ -895,7 +940,7 @@ function renderGdpBarChart(selectedYear, topN = 10) {
 
     svg.attr("width", width).attr("height", height);
 
-    // IMPORTANT: clip-path only clips the chart content (bars), NOT the axes
+    // clip-path
     let defs = svg.select("defs");
     if (defs.empty()) defs = svg.append("defs");
     let clip = defs.select("clipPath#gdp-clip");
@@ -905,13 +950,11 @@ function renderGdpBarChart(selectedYear, topN = 10) {
     }
     svg.select("#gdp-clip-rect").attr("x", 0).attr("y", 0).attr("width", chartW).attr("height", chartH);
 
-    // Main chart group (WITH clip-path for bars only)
     let mainG = svg.select("g#gdpChartG");
     if (mainG.empty()) mainG = svg.append("g").attr("id", "gdpChartG");
     mainG.attr("transform", `translate(${margin.left},${margin.top})`);
     mainG.attr("clip-path", "url(#gdp-clip)");
 
-    // Axis groups (WITHOUT clip-path, outside mainG)
     let axisContainerG = svg.select("g#gdp-axis-container");
     if (axisContainerG.empty()) axisContainerG = svg.append("g").attr("id", "gdp-axis-container");
 
@@ -925,37 +968,27 @@ function renderGdpBarChart(selectedYear, topN = 10) {
         .range([0, chartH])
         .padding(0.15);
 
-    // X-axis at top
-    let xAxisG = axisContainerG.select("g#gdp-x-axis");
-    if (xAxisG.empty()) xAxisG = axisContainerG.append("g").attr("id", "gdp-x-axis");
-    xAxisG.attr("transform", `translate(${margin.left}, ${margin.top - 12})`);
-    xAxisG.selectAll("*").remove();
-
     const t = svg.transition().duration(750).ease(d3.easeSinInOut);
 
+    // X axis (top)
+    let xAxisG = axisContainerG.select("g#gdp-x-axis");
+    if (xAxisG.empty()) xAxisG = axisContainerG.append("g").attr("id", "gdp-x-axis");
     xAxisG.transition(t)
         .call(d3.axisTop(x).ticks(4).tickSizeOuter(0).tickFormat(d3.format(".2s")));
-    xAxisG.selectAll("text")
-        .attr("fill", "#aaa")
-        .style("font-size", "11px")
-        .attr("transform", null)
-        .style("text-anchor", "middle");
-    xAxisG.selectAll("line,path").attr("stroke", "#444");
+    xAxisG.attr("transform", `translate(${margin.left}, ${margin.top - 12})`);
+    xAxisG.selectAll("text").attr("fill", "#aaa").style("font-size", "11px");
 
-    // Y-axis (left side, OUTSIDE clip-path so labels are visible)
+    // Y axis (left labels)
     let yAxisG = axisContainerG.select("g#gdp-y-axis");
     if (yAxisG.empty()) yAxisG = axisContainerG.append("g").attr("id", "gdp-y-axis");
     yAxisG.attr("transform", `translate(${margin.left}, ${margin.top})`);
-    yAxisG.selectAll("*").remove();
-
     yAxisG.transition(t)
         .call(d3.axisLeft(y).tickSizeOuter(0));
     yAxisG.selectAll("text")
         .attr("fill", "#ddd")
         .style("font-size", "11px");
-    yAxisG.selectAll("line,path").attr("stroke", "#444");
 
-    // Data join for rows (inside clipped mainG)
+    // Rows
     const rows = mainG.selectAll(".gdp-row").data(top, d => d.country);
 
     rows.exit().transition(t).style("opacity", 0).remove();
@@ -1003,13 +1036,23 @@ function renderGdpBarChart(selectedYear, topN = 10) {
         .attr("height", y.bandwidth());
 
     rowsUpdate.select(".gdp-value")
-        .transition()
+        .transition(t)
         .delay((d, i) => 120 + i * 40 + 420)
         .duration(320)
         .style("opacity", 1)
-        .attr("x", d => x(d.value) + 8);
+        .attr("x", function(d) {
+            const txt = d.value.toLocaleString();
+            const approxTxtWidth = txt.length * 7;
+            const barX = x(d.value);
+            if (barX + 8 + approxTxtWidth < chartW) {
+                d3.select(this).attr("text-anchor", "start");
+                return barX + 8;
+            } else {
+                d3.select(this).attr("text-anchor", "end");
+                return Math.max(barX - 6, 6);
+            }
+        });
 
-    // Hover effects
     rowsUpdate.on("mouseenter", function() {
         const sel = d3.select(this);
         sel.select(".gdp-rect").transition().duration(120).attr("fill", "#a78bfa").attr("opacity", 1);
@@ -1021,6 +1064,7 @@ function renderGdpBarChart(selectedYear, topN = 10) {
     // Title
     let title = svg.select("text#gdp-title");
     if (title.empty()) title = svg.append("text").attr("id", "gdp-title");
+    const modeLabel = selectedMode ? (selectedMode === "immigration" ? "Immigration partners" : "Emigration partners") : "Partners";
     title.attr("x", width / 2)
         .attr("y", 18)
         .attr("text-anchor", "middle")
@@ -1028,6 +1072,7 @@ function renderGdpBarChart(selectedYear, topN = 10) {
         .style("font-size", "13px")
         .style("font-weight", "600")
         .style("opacity", 0)
-        .text(`Top ${topN} GDP — ${selectedYear} (Million €)`);
+        .text(`${modeLabel} — Top ${topN} by GDP — ${selectedYear}`);
     title.transition().delay(100).duration(400).style("opacity", 1);
 }
+// ...existing code...
