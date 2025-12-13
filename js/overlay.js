@@ -175,7 +175,6 @@ function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
     
 }
 
-// ...existing code...
 
 let lastRenderedCountry = null;
 
@@ -1137,7 +1136,6 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
     title.transition().delay(100).duration(400).style("opacity", 1);
 }
 
-// ...existing code...
 // Highlight helper & simple playback sync for popup timeline
 // call highlightPopupYear(yearNumber) to move the emphasis marker + show numeric label
 function highlightPopupYear(year) {
