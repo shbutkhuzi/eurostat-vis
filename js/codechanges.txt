@@ -1,6 +1,0 @@
-overlay.js
-line 189
-popupContent.innerHTML = `
-           <h2>${selectedCountry}</h2>
-            <p><b>Total records:</b> ${totalEntries}</p>
-            `; 
