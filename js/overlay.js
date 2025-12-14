@@ -1146,17 +1146,17 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
         .style("font-size", "13px")
         .style("font-weight", "600")
         .style("opacity", 0)
-        .text(`${modeLabel} — Top ${topN} by GDP — ${selectedYear}`);
+        .text(`${modeLabel} — Top ${topN} by GDP (Million EUR) — ${selectedYear}`);
     title.transition().delay(100).duration(400).style("opacity", 1);
 }
 
 // Highlight helper & simple playback sync for popup timeline
 // call highlightPopupYear(yearNumber) to move the emphasis marker + show numeric label
+// ...existing code...
 function highlightPopupYear(year) {
     const data = window.popupSeriesData;
     const s = window.popupScales;
     if (!data || !s || year == null) {
-        // hide highlight if not available
         const svg = d3.select("#popup-svg");
         svg.select("g#popup-highlight-group").transition().duration(120).style("opacity", 0);
         return;
@@ -1175,40 +1175,68 @@ function highlightPopupYear(year) {
     const hl = svg.select("g#popup-highlight-group");
     if (hl.empty()) return;
 
-    const labelText = `${point.year}: ${Math.round(point.value).toLocaleString()}`;
+    // show only the volume (no year)
+    const labelText = `${Math.round(point.value).toLocaleString()}`;
     const txt = hl.select("text#popup-highlight-label").text(labelText);
 
     // measure text to size bg rect
-    // temporarily set to visibility hidden to measure
     txt.attr("x", 0).attr("y", 0);
     const bbox = txt.node().getBBox();
     const pad = 6;
-    hl.select("rect#popup-highlight-bg")
-        .attr("width", bbox.width + pad * 2)
-        .attr("height", bbox.height + pad)
-        .attr("x", xPos + 10 - pad)
-        .attr("y", yPos - bbox.height / 2 - pad / 2);
 
-    txt.attr("x", xPos + 10).attr("y", yPos).attr("text-anchor", "start");
+    // Determine placement: for the last year place label to the left,
+    // otherwise prefer right placement but ensure it doesn't overflow.
+    let placeLeft = false;
+    try {
+        const years = Array.isArray(window.popupSeriesYears) ? window.popupSeriesYears : data.map(d => d.year);
+        if (years.length && years[years.length - 1] === +year) {
+            placeLeft = true;
+        } else {
+            const rightNeeded = xPos + 10 + bbox.width + pad;
+            if (rightNeeded > (s.width - 4)) placeLeft = true;
+        }
+    } catch (e) {
+        placeLeft = false;
+    }
 
-    // position circle inside overall svg coords
+    if (placeLeft) {
+        const bgX = Math.max(s.margin.left + 4, xPos - 10 - bbox.width - pad * 2);
+        hl.select("rect#popup-highlight-bg")
+            .attr("width", bbox.width + pad * 2)
+            .attr("height", bbox.height + pad)
+            .attr("x", bgX)
+            .attr("y", yPos - bbox.height / 2 - pad / 2);
+
+        txt.attr("x", Math.max(s.margin.left + 6, xPos - 10))
+            .attr("y", yPos)
+            .attr("text-anchor", "end");
+    } else {
+        const bgX = Math.min(s.width - 4 - (bbox.width + pad * 2), xPos + 10 - pad);
+        hl.select("rect#popup-highlight-bg")
+            .attr("width", bbox.width + pad * 2)
+            .attr("height", bbox.height + pad)
+            .attr("x", bgX)
+            .attr("y", yPos - bbox.height / 2 - pad / 2);
+
+        txt.attr("x", Math.min(s.width - 6, xPos + 10))
+            .attr("y", yPos)
+            .attr("text-anchor", "start");
+    }
+
     hl.select("circle#popup-highlight-circle")
         .attr("cx", xPos)
         .attr("cy", yPos);
 
-    // show with a small pulse animation
     hl.transition().duration(120).style("opacity", 1);
     const circ = hl.select("circle#popup-highlight-circle");
     circ.transition().duration(220).attr("r", 10).transition().duration(220).attr("r", 6);
 
-    // also try to update year-slider value so flow network / other UI stays in sync
     try {
         const slider = document.getElementById("year-slider");
         if (slider && Array.isArray(window.popupSeriesYears)) {
             const idx = window.popupSeriesYears.indexOf(+year);
             if (idx >= 0 && slider.value != idx) {
                 slider.value = idx;
-                // dispatch events so other listeners (slider.js) react
                 slider.dispatchEvent(new Event("input", { bubbles: true }));
                 slider.dispatchEvent(new Event("change", { bubbles: true }));
             }
@@ -1217,6 +1245,7 @@ function highlightPopupYear(year) {
         // ignore
     }
 }
+// ...existing
 // expose globally so other modules can call it
 window.highlightPopupYear = highlightPopupYear;
 
