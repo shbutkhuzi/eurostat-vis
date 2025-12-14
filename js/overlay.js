@@ -1231,21 +1231,21 @@ function highlightPopupYear(year) {
     const circ = hl.select("circle#popup-highlight-circle");
     circ.transition().duration(220).attr("r", 10).transition().duration(220).attr("r", 6);
 
+    // --- SILENTLY update slider value to avoid re-triggering handlers and loops ---
     try {
         const slider = document.getElementById("year-slider");
         if (slider && Array.isArray(window.popupSeriesYears)) {
             const idx = window.popupSeriesYears.indexOf(+year);
             if (idx >= 0 && slider.value != idx) {
+                // set value silently (do NOT dispatch input/change events)
                 slider.value = idx;
-                slider.dispatchEvent(new Event("input", { bubbles: true }));
-                slider.dispatchEvent(new Event("change", { bubbles: true }));
             }
         }
     } catch (e) {
         // ignore
     }
 }
-// ...existing
+// ...existing code...
 // expose globally so other modules can call it
 window.highlightPopupYear = highlightPopupYear;
 
