@@ -177,6 +177,8 @@ function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
 
 
 let lastRenderedCountry = null;
+let lastRenderedMode = null;
+
 
 function updateStat1(selectedCountry, selectedYear, selectedMode){
     const popupContent = document.getElementById("stat-1");
@@ -193,8 +195,8 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
         });
     }
 
-    // ONLY rebuild HTML if country changed
-    if (selectedCountry !== lastRenderedCountry) {
+    // ONLY rebuild HTML if country OR mode changed
+    if (selectedCountry !== lastRenderedCountry || selectedMode !== lastRenderedMode) {
         popupContent.innerHTML = `
             <div id="stat-1-header">
                 <h2>${selectedCountry || ''}</h2>
@@ -206,8 +208,9 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
 
         // Render popup chart when country changes
         setTimeout(() => {
-            renderPopupChart(selectedCountry);
+            renderPopupChart(selectedCountry, selectedMode);
             lastRenderedCountry = selectedCountry;
+            lastRenderedMode = selectedMode;
         }, 0);
     } else {
         // Country didn't change, just update the header text (if needed)
@@ -216,6 +219,8 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
             header.querySelector("p").innerHTML = `<b>Total records:</b> ${totalEntries.toLocaleString()}`;
         }
     }
+    // update lastRenderedMode even if only header updated
+    lastRenderedMode = selectedMode;
 
     // Always update GDP chart (it updates with year)
     if (selectedYear) {
@@ -227,7 +232,6 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
         if (gcont) gcont.innerHTML = '<p style="color:#999">Select a year to show GDP top 10.</p>';
     }
 }
-
 
 function updateStat2(selectedCountry, selectedYear, selectedMode){
 
@@ -716,11 +720,21 @@ function drawMigrationBarChart(selectedCountry, selectedYear, selectedMode){
     });
 }
 
-function renderPopupChart(selectedCountry) {
+function renderPopupChart(selectedCountry, selectedMode) {
     const container = document.getElementById("popup-chart-wrapper");
-    if (!container || !dataCtx || !dataCtx.immDataGrouped) return;
+    if (!container || !dataCtx) return;
 
-    const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
+    // choose correct grouped timeseries map based on mode
+    const grouped = (selectedMode === "emigration") ? dataCtx.emiDataGrouped : dataCtx.immDataGrouped;
+    if (!grouped) {
+        container.innerHTML = '<div class="fallback-text" style="color:#ccc">No migration time series data</div>';
+        window.popupSeriesData = null;
+        window.popupScales = null;
+        return;
+    }
+
+    const yearMap = grouped.get(selectedCountry);
+
     // ensure DOM order: popup-chart-wrapper above gdp-chart-container (updateStat1 already does this)
 
     // create or reuse svg
