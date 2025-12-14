@@ -1152,7 +1152,6 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
 
 // Highlight helper & simple playback sync for popup timeline
 // call highlightPopupYear(yearNumber) to move the emphasis marker + show numeric label
-// ...existing code...
 function highlightPopupYear(year) {
     const data = window.popupSeriesData;
     const s = window.popupScales;
@@ -1245,7 +1244,6 @@ function highlightPopupYear(year) {
         // ignore
     }
 }
-// ...existing code...
 // expose globally so other modules can call it
 window.highlightPopupYear = highlightPopupYear;
 
