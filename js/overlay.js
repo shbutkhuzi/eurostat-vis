@@ -177,6 +177,8 @@ function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
 
 
 let lastRenderedCountry = null;
+let lastRenderedMode = null;
+
 
 function updateStat1(selectedCountry, selectedYear, selectedMode){
     const popupContent = document.getElementById("stat-1");
@@ -193,8 +195,8 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
         });
     }
 
-    // ONLY rebuild HTML if country changed
-    if (selectedCountry !== lastRenderedCountry) {
+    // ONLY rebuild HTML if country OR mode changed
+    if (selectedCountry !== lastRenderedCountry || selectedMode !== lastRenderedMode) {
         popupContent.innerHTML = `
             <div id="stat-1-header">
                 <h2>${selectedCountry || ''}</h2>
@@ -206,8 +208,9 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
 
         // Render popup chart when country changes
         setTimeout(() => {
-            renderPopupChart(selectedCountry);
+            renderPopupChart(selectedCountry, selectedMode);
             lastRenderedCountry = selectedCountry;
+            lastRenderedMode = selectedMode;
         }, 0);
     } else {
         // Country didn't change, just update the header text (if needed)
@@ -216,6 +219,8 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
             header.querySelector("p").innerHTML = `<b>Total records:</b> ${totalEntries.toLocaleString()}`;
         }
     }
+    // update lastRenderedMode even if only header updated
+    lastRenderedMode = selectedMode;
 
     // Always update GDP chart (it updates with year)
     if (selectedYear) {
@@ -227,7 +232,6 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
         if (gcont) gcont.innerHTML = '<p style="color:#999">Select a year to show GDP top 10.</p>';
     }
 }
-
 
 function updateStat2(selectedCountry, selectedYear, selectedMode){
 
@@ -716,11 +720,21 @@ function drawMigrationBarChart(selectedCountry, selectedYear, selectedMode){
     });
 }
 
-function renderPopupChart(selectedCountry) {
+function renderPopupChart(selectedCountry, selectedMode) {
     const container = document.getElementById("popup-chart-wrapper");
-    if (!container || !dataCtx || !dataCtx.immDataGrouped) return;
+    if (!container || !dataCtx) return;
 
-    const yearMap = dataCtx.immDataGrouped.get(selectedCountry);
+    // choose correct grouped timeseries map based on mode
+    const grouped = (selectedMode === "emigration") ? dataCtx.emiDataGrouped : dataCtx.immDataGrouped;
+    if (!grouped) {
+        container.innerHTML = '<div class="fallback-text" style="color:#ccc">No migration time series data</div>';
+        window.popupSeriesData = null;
+        window.popupScales = null;
+        return;
+    }
+
+    const yearMap = grouped.get(selectedCountry);
+
     // ensure DOM order: popup-chart-wrapper above gdp-chart-container (updateStat1 already does this)
 
     // create or reuse svg
@@ -1132,7 +1146,7 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
         .style("font-size", "13px")
         .style("font-weight", "600")
         .style("opacity", 0)
-        .text(`${modeLabel} — Top ${topN} by GDP — ${selectedYear}`);
+        .text(`${modeLabel} — Top ${topN} by GDP (Million EUR) — ${selectedYear}`);
     title.transition().delay(100).duration(400).style("opacity", 1);
 }
 
@@ -1142,7 +1156,6 @@ function highlightPopupYear(year) {
     const data = window.popupSeriesData;
     const s = window.popupScales;
     if (!data || !s || year == null) {
-        // hide highlight if not available
         const svg = d3.select("#popup-svg");
         svg.select("g#popup-highlight-group").transition().duration(120).style("opacity", 0);
         return;
@@ -1161,42 +1174,70 @@ function highlightPopupYear(year) {
     const hl = svg.select("g#popup-highlight-group");
     if (hl.empty()) return;
 
-    const labelText = `${point.year}: ${Math.round(point.value).toLocaleString()}`;
+    // show only the volume (no year)
+    const labelText = `${Math.round(point.value).toLocaleString()}`;
     const txt = hl.select("text#popup-highlight-label").text(labelText);
 
     // measure text to size bg rect
-    // temporarily set to visibility hidden to measure
     txt.attr("x", 0).attr("y", 0);
     const bbox = txt.node().getBBox();
     const pad = 6;
-    hl.select("rect#popup-highlight-bg")
-        .attr("width", bbox.width + pad * 2)
-        .attr("height", bbox.height + pad)
-        .attr("x", xPos + 10 - pad)
-        .attr("y", yPos - bbox.height / 2 - pad / 2);
 
-    txt.attr("x", xPos + 10).attr("y", yPos).attr("text-anchor", "start");
+    // Determine placement: for the last year place label to the left,
+    // otherwise prefer right placement but ensure it doesn't overflow.
+    let placeLeft = false;
+    try {
+        const years = Array.isArray(window.popupSeriesYears) ? window.popupSeriesYears : data.map(d => d.year);
+        if (years.length && years[years.length - 1] === +year) {
+            placeLeft = true;
+        } else {
+            const rightNeeded = xPos + 10 + bbox.width + pad;
+            if (rightNeeded > (s.width - 4)) placeLeft = true;
+        }
+    } catch (e) {
+        placeLeft = false;
+    }
 
-    // position circle inside overall svg coords
+    if (placeLeft) {
+        const bgX = Math.max(s.margin.left + 4, xPos - 10 - bbox.width - pad * 2);
+        hl.select("rect#popup-highlight-bg")
+            .attr("width", bbox.width + pad * 2)
+            .attr("height", bbox.height + pad)
+            .attr("x", bgX)
+            .attr("y", yPos - bbox.height / 2 - pad / 2);
+
+        txt.attr("x", Math.max(s.margin.left + 6, xPos - 10))
+            .attr("y", yPos)
+            .attr("text-anchor", "end");
+    } else {
+        const bgX = Math.min(s.width - 4 - (bbox.width + pad * 2), xPos + 10 - pad);
+        hl.select("rect#popup-highlight-bg")
+            .attr("width", bbox.width + pad * 2)
+            .attr("height", bbox.height + pad)
+            .attr("x", bgX)
+            .attr("y", yPos - bbox.height / 2 - pad / 2);
+
+        txt.attr("x", Math.min(s.width - 6, xPos + 10))
+            .attr("y", yPos)
+            .attr("text-anchor", "start");
+    }
+
     hl.select("circle#popup-highlight-circle")
         .attr("cx", xPos)
         .attr("cy", yPos);
 
-    // show with a small pulse animation
     hl.transition().duration(120).style("opacity", 1);
     const circ = hl.select("circle#popup-highlight-circle");
     circ.transition().duration(220).attr("r", 10).transition().duration(220).attr("r", 6);
 
-    // also try to update year-slider value so flow network / other UI stays in sync
+    // --- SILENTLY update slider value to avoid re-triggering handlers and loops ---
     try {
         const slider = document.getElementById("year-slider");
         if (slider && Array.isArray(window.popupSeriesYears)) {
             const idx = window.popupSeriesYears.indexOf(+year);
             if (idx >= 0 && slider.value != idx) {
+                // set value silently (do NOT dispatch input/change events)
                 slider.value = idx;
-                // dispatch events so other listeners (slider.js) react
-                slider.dispatchEvent(new Event("input", { bubbles: true }));
-                slider.dispatchEvent(new Event("change", { bubbles: true }));
             }
         }
     } catch (e) {
