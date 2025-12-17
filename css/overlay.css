@@ -162,6 +162,7 @@
     width: 50%;
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     color: #ddd;
     font-family: Inter, Arial, sans-serif; /* fuente del popup */
     font-size: 14px;
@@ -169,15 +170,16 @@
     padding: 5px;
 }
 
-#stat-1 {
+/* #stat-1 {
     border-right: 1px solid rgba(139, 92, 246, 0.3);
-}
+} */
 
 /* Custom scrollbar for popup content */
 #stat-1::-webkit-scrollbar,
 #stat-2::-webkit-scrollbar,
 #info-popup-window::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
 }
 
 #stat-1::-webkit-scrollbar-track,
@@ -198,4 +200,17 @@
 #stat-2::-webkit-scrollbar-thumb:hover,
 #info-popup-window::-webkit-scrollbar-thumb:hover {
     background: rgba(139, 92, 246, 0.7);
+}
+
+#stat-1::-webkit-scrollbar-corner,
+#stat-2::-webkit-scrollbar-corner,
+#info-popup-window::-webkit-scrollbar-corner {
+    background: rgba(18, 18, 18, 0.95);
+}
+
+#stat-1,
+#stat-2,
+#info-popup-window {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(139, 92, 246, 0.5) rgba(139, 92, 246, 0.1);
 }

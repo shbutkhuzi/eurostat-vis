@@ -2,7 +2,9 @@
 const overlayState = {
     isStatsPopupOpen: false,
     isInfoPopupOpen: false,
-    isAnimating: false
+    isAnimating: false,
+    lastPopupSelection: null,
+    _stat1LayoutRaf: null
 };
 
 // Initialize overlay UI
@@ -172,6 +174,8 @@ function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
 
     updateStat1(selectedCountry, selectedYear, selectedMode);
     updateStat2(selectedCountry, selectedYear, selectedMode);
+
+    overlayState.lastPopupSelection = { selectedCountry, selectedYear, selectedMode };
     
 }
 
@@ -195,6 +199,10 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
         });
     }
 
+    popupContent.style.display = "flex";
+    popupContent.style.flexDirection = "column";
+    popupContent.style.overflow = "hidden";
+
     // ONLY rebuild HTML if country OR mode changed
     if (selectedCountry !== lastRenderedCountry || selectedMode !== lastRenderedMode) {
         popupContent.innerHTML = `
@@ -206,12 +214,8 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
             <div id="gdp-chart-container" style="margin-top:12px;"></div>
         `;
 
-        // Render popup chart when country changes
-        setTimeout(() => {
-            renderPopupChart(selectedCountry, selectedMode);
-            lastRenderedCountry = selectedCountry;
-            lastRenderedMode = selectedMode;
-        }, 0);
+        lastRenderedCountry = selectedCountry;
+        lastRenderedMode = selectedMode;
     } else {
         // Country didn't change, just update the header text (if needed)
         const header = popupContent.querySelector("#stat-1-header");
@@ -222,16 +226,90 @@ function updateStat1(selectedCountry, selectedYear, selectedMode){
     // update lastRenderedMode even if only header updated
     lastRenderedMode = selectedMode;
 
-    // Always update GDP chart (it updates with year)
-    if (selectedYear) {
-        setTimeout(() => {
-        renderGdpBarChart(selectedCountry, selectedYear, selectedMode, 10);
-        }, 50);
+    scheduleStat1Layout(selectedCountry, selectedYear, selectedMode);
+}
+
+function scheduleStat1Layout(selectedCountry, selectedYear, selectedMode) {
+    if (overlayState._stat1LayoutRaf) {
+        cancelAnimationFrame(overlayState._stat1LayoutRaf);
+    }
+    overlayState._stat1LayoutRaf = requestAnimationFrame(() => {
+        overlayState._stat1LayoutRaf = null;
+        layoutStat1Charts(selectedCountry, selectedYear, selectedMode);
+    });
+}
+
+function layoutStat1Charts(selectedCountry, selectedYear, selectedMode) {
+    const stat1 = document.getElementById("stat-1");
+    if (!stat1) return;
+
+    const header = stat1.querySelector("#stat-1-header");
+    const lineContainer = stat1.querySelector("#popup-chart-wrapper");
+    const gdpContainer = stat1.querySelector("#gdp-chart-container");
+    if (!lineContainer || !gdpContainer) return;
+
+    stat1.style.overflow = "hidden";
+    lineContainer.style.overflow = "hidden";
+    gdpContainer.style.overflow = "hidden";
+    gdpContainer.style.marginTop = "12px";
+
+    const totalH = stat1.clientHeight || 0;
+    const headerH = header ? header.offsetHeight : 0;
+    const gapH = 12;
+    const safety = 10;
+    const available = Math.max(0, totalH - headerH - gapH - safety);
+    if (available <= 0) return;
+
+    const ratio = 0.38;
+    const minLine = 140;
+    const minGdp = 160;
+
+    let lineH;
+    let gdpH;
+
+    if (available >= (minLine + minGdp)) {
+        lineH = Math.round(available * ratio);
+        lineH = Math.max(minLine, Math.min(lineH, available - minGdp));
+        gdpH = available - lineH;
     } else {
-        const gcont = document.getElementById("gdp-chart-container");
-        if (gcont) gcont.innerHTML = '<p style="color:#999">Select a year to show GDP top 10.</p>';
+        lineH = Math.max(110, Math.floor(available * ratio));
+        gdpH = Math.max(110, available - lineH);
+        if (lineH + gdpH > available) {
+            lineH = Math.max(0, available - gdpH);
+        }
+    }
+
+    lineContainer.style.flex = `0 0 ${lineH}px`;
+    lineContainer.style.height = `${lineH}px`;
+
+    gdpContainer.style.flex = `0 0 ${gdpH}px`;
+    gdpContainer.style.height = `${gdpH}px`;
+
+    window._stat1LayoutKeys = window._stat1LayoutKeys || { line: null, gdp: null };
+
+    const lineKey = `${selectedCountry || ''}|${selectedMode || ''}|${lineContainer.clientWidth}|${lineH}`;
+    if (selectedCountry && selectedMode && window._stat1LayoutKeys.line !== lineKey) {
+        renderPopupChart(selectedCountry, selectedMode, lineH);
+        window._stat1LayoutKeys.line = lineKey;
+    }
+
+    if (selectedYear) {
+        const gdpKey = `${selectedCountry || ''}|${selectedMode || ''}|${selectedYear}|${gdpContainer.clientWidth}|${gdpH}`;
+        if (window._stat1LayoutKeys.gdp !== gdpKey) {
+            renderGdpBarChart(selectedCountry, selectedYear, selectedMode, 10, gdpH);
+            window._stat1LayoutKeys.gdp = gdpKey;
+        }
+    } else {
+        gdpContainer.innerHTML = '<p style="color:#999">Select a year to show GDP top 10.</p>';
+        window._stat1LayoutKeys.gdp = null;
     }
 }
+
+window.addEventListener("resize", () => {
+    if (!overlayState.isStatsPopupOpen || !overlayState.lastPopupSelection) return;
+    const { selectedCountry, selectedYear, selectedMode } = overlayState.lastPopupSelection;
+    scheduleStat1Layout(selectedCountry, selectedYear, selectedMode);
+});
 
 function updateStat2(selectedCountry, selectedYear, selectedMode){
 
@@ -720,7 +798,7 @@ function drawMigrationBarChart(selectedCountry, selectedYear, selectedMode){
     });
 }
 
-function renderPopupChart(selectedCountry, selectedMode) {
+function renderPopupChart(selectedCountry, selectedMode, targetHeight = null) {
     const container = document.getElementById("popup-chart-wrapper");
     if (!container || !dataCtx) return;
 
@@ -778,7 +856,7 @@ function renderPopupChart(selectedCountry, selectedMode) {
 
     const margin = { top: 12, right: 12, bottom: 38, left: 100 };
     const width = Math.max(320, container.clientWidth || 400);
-    const height = 200;
+    const height = (targetHeight != null) ? Math.max(140, Math.floor(targetHeight)) : 200;
     const w = width - margin.left - margin.right;
     const h = height - margin.top - margin.bottom;
 
@@ -915,7 +993,7 @@ function renderPopupChart(selectedCountry, selectedMode) {
 }
 
 
-function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 10) {
+function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 10, maxHeight = null) {
     const container = document.getElementById("gdp-chart-container");
     if (!container || !dataCtx || !dataCtx.gdpDataGrouped) return;
 
@@ -998,9 +1076,15 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
     const approxCharWidth = 8; // px per char approximation
     const computedLeft = Math.max(60, Math.min(140, maxLabelChars * approxCharWidth + 16));
 
-    const margin = { top: 52, right: 12, bottom: 28, left: computedLeft };
+    const heightCap = (maxHeight != null && isFinite(maxHeight)) ? Math.max(140, Math.floor(maxHeight)) : null;
+    const compact = heightCap != null && heightCap < 240;
+
+    const margin = { top: compact ? 44 : 52, right: 12, bottom: compact ? 18 : 28, left: computedLeft };
     const width = Math.max(320, container.clientWidth || 420);
-    const height = Math.max(200, top.length * 30 + margin.top + margin.bottom);
+    const rowH = compact ? 22 : 30;
+    const desiredHeight = top.length * rowH + margin.top + margin.bottom;
+    let height = Math.max(compact ? 160 : 200, desiredHeight);
+    if (heightCap != null) height = Math.min(height, heightCap);
     const chartW = width - margin.left - margin.right;
     const chartH = height - margin.top - margin.bottom;
 
