@@ -161,8 +161,6 @@ function updateOverlayVisibility(countrySelected) {
 
 function updatePopupContent(selectedCountry, selectedYear, selectedMode) {
 
-    console.log(`updatePopupContent(${selectedCountry}, ${selectedYear}, ${selectedMode})`);
-
      // expose current selected year so highlight/playback helpers can use it
     window.popupSelectedYear = selectedYear;
 
@@ -1194,6 +1192,8 @@ function renderGdpBarChart(selectedCountry, selectedYear, selectedMode, topN = 1
         .attr("height", y.bandwidth());
 
     rowsUpdate.select(".gdp-value")
+        .text(d => d.value.toLocaleString())
+        .attr("y", y.bandwidth() / 2)
         .transition(t)
         .delay((d, i) => 120 + i * 40 + 420)
         .duration(320)

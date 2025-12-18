@@ -158,6 +158,32 @@
     margin-bottom: 8px;
 }
 
+#info-content a.paper-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid #8b5cf6;
+    color: #8b5cf6;
+    background: transparent;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+#info-content a.paper-link:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    border-color: transparent;
+    color: #fff;
+}
+
+#info-content a.paper-link:focus-visible {
+    outline: 2px solid #8b5cf6;
+    outline-offset: 2px;
+}
+
 #stat-1, #stat-2 {
     width: 50%;
     height: 100%;
