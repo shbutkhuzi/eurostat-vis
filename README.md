@@ -6,3 +6,7 @@ It visualizes migration dynamics in Europe with an interactive map (flow network
 
 This project is hosted on GitHub Pages and can be viewed here:
 https://shbutkhuzi.github.io/eurostat-vis/
+
+Authors:
+Butkhuzi, Shalva
+Vilcherrez, Cesar
